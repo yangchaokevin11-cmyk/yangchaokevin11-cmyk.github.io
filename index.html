@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="英语打卡">
+<meta name="theme-color" content="#2445B5">
+<title>英语打卡 · 测试</title>
+<style>
+:root{--paper:#F5F6F9;--card:#FFFFFF;--ink:#1B2333;--muted:#5C6578;--line:#E0E4EC;--accent:#2445B5;--ok:#1E7F4F;--bad:#B4372B;--soft:#E2E8FB}
+@media (prefers-color-scheme:dark){:root{--paper:#11151D;--card:#1A1F2A;--ink:#E6E9F0;--muted:#9AA2B4;--line:#2B3241;--accent:#8EA5FF;--ok:#5CC98E;--bad:#F08A7E;--soft:#25305A;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+  padding:max(24px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 48px max(16px,env(safe-area-inset-left))}
+.wrap{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1{font-family:"Songti SC","STSong",serif;font-size:26px;margin:0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
+.card h2{font-size:17px;margin:0 0 6px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.st{font-size:13px;font-weight:600;border-radius:10px;padding:1px 10px;background:var(--soft);color:var(--muted);white-space:nowrap}
+.st.ok{background:var(--ok);color:var(--card)} .st.bad{background:var(--bad);color:var(--card)}
+p{margin:4px 0;color:var(--muted);font-size:14.5px}
+button{font:inherit;font-size:15px;border:1px solid var(--accent);background:var(--accent);color:var(--card);border-radius:9px;padding:9px 16px;cursor:pointer;margin:8px 8px 0 0}
+button.sec{background:transparent;color:var(--accent)}
+button:disabled{opacity:.4}
+input{font:inherit;width:100%;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:8px;padding:8px 10px;margin-top:8px}
+.big{font-size:22px;font-weight:700;color:var(--ink)}
+.result{font-family:ui-monospace,Menlo,monospace;font-size:13px;background:var(--paper);border-radius:8px;padding:10px;white-space:pre-wrap;color:var(--ink)}
+audio{width:100%;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <h1>英语打卡 · 测试页</h1>
+    <p>能看到这一页，第 1 项就通过了。请依次做下面的测试，最后把底部的“测试结果”拍照或照抄发给 Claude。</p>
+  </div>
+
+  <div class="card">
+    <h2>1. 不翻墙能打开 <span class="st ok">通过</span></h2>
+    <p>打开时请确认 iPad 没有开翻墙工具。</p>
+    <p id="env"></p>
+  </div>
+
+  <div class="card">
+    <h2>2. 进度能保存 <span class="st" id="s2">待测试</span></h2>
+    <p>这个页面已经被打开 <span class="big" id="visits">0</span> 次。</p>
+    <p>在下面输入任意文字，然后彻底关掉 Safari 再重新打开这个页面，看文字和次数是否还在。</p>
+    <input id="memo" placeholder="比如：hello">
+  </div>
+
+  <div class="card">
+    <h2>3. 朗读英文 <span class="st" id="s3">待测试</span></h2>
+    <p>点按钮，iPad 会读一句英文。记得打开声音、关掉静音开关。</p>
+    <button id="speak">朗读一句</button><button class="sec" id="speakSlow">慢速朗读</button>
+    <p id="voices"></p>
+    <button class="sec" id="heard">我听到了</button><button class="sec" id="notHeard">没有声音</button>
+  </div>
+
+  <div class="card">
+    <h2>4. 网页内录音 <span class="st" id="s4">待测试</span></h2>
+    <p>点“开始录音”，用英文说一句话，比如 “My name is Yang Chao”，然后点“停止”并回放。第一次会弹窗请求麦克风权限，请点“允许”。</p>
+    <button id="rec">开始录音</button><button class="sec" id="stop" disabled>停止</button>
+    <audio id="play" controls hidden></audio>
+    <p id="recMsg"></p>
+  </div>
+
+  <div class="card">
+    <h2>5. 添加到主屏幕 <span class="st" id="s5">待测试</span></h2>
+    <p>点 Safari 地址栏旁的“分享”按钮 → “添加到主屏幕”。然后从主屏幕上的“英语打卡”图标打开，再看一次第 2 项的次数。</p>
+    <p id="standalone"></p>
+  </div>
+
+  <div class="card">
+    <h2>测试结果</h2>
+    <div class="result" id="result"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const R = {open:'通过', save:'待测试', speak:'待测试', rec:'待测试', home:'待测试'};
+  const mark = (id, key, ok, text) => { const s = $(id); s.textContent = text || (ok ? '通过' : '未通过'); s.className = 'st ' + (ok ? 'ok' : 'bad'); R[key] = s.textContent; show(); };
+  function show(){
+    $('result').textContent =
+      '1 打开：' + R.open + '\n2 保存：' + R.save + '（打开次数 ' + $('visits').textContent + '）\n3 朗读：' + R.speak +
+      '\n4 录音：' + R.rec + '\n5 主屏幕：' + R.home + '\n设备：' + (/iPad|Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1 ? 'iPad' : navigator.platform);
+  }
+  $('env').textContent = '打开时间：' + new Date().toLocaleString('zh-CN');
+
+  // 2. storage
+  let n = 0;
+  try {
+    n = (+localStorage.getItem('t-visits') || 0) + 1; localStorage.setItem('t-visits', n);
+    $('memo').value = localStorage.getItem('t-memo') || '';
+    $('memo').addEventListener('input', e => { try { localStorage.setItem('t-memo', e.target.value); } catch(x){} });
+    if (n > 1) mark('s2','save', true, $('memo').value ? '通过' : '通过（次数已保存）');
+  } catch(e) { mark('s2','save', false, '不能保存'); }
+  $('visits').textContent = n;
+
+  // 3. speech
+  const synth = window.speechSynthesis;
+  function voiceInfo(){
+    if (!synth) { $('voices').textContent = '这个浏览器不支持朗读。'; mark('s3','speak',false); return; }
+    const en = synth.getVoices().filter(v => /^en/i.test(v.lang));
+    $('voices').textContent = '找到 ' + en.length + ' 个英文语音' + (en.length ? '，例如 ' + en.slice(0,3).map(v => v.name).join('、') : '（第一次可能要点一下朗读才会加载）');
+  }
+  function say(rate){
+    if (!synth) return;
+    synth.cancel();
+    const u = new SpeechSynthesisUtterance('Hello, Yang Chao. This is your daily English practice. Let\'s get started.');
+    u.lang = 'en-US'; u.rate = rate;
+    const v = synth.getVoices().find(v => v.lang === 'en-US' && /Samantha|Alex|Ava|Allison|Google US/i.test(v.name)) || synth.getVoices().find(v => /^en-US/i.test(v.lang));
+    if (v) u.voice = v;
+    synth.speak(u); setTimeout(voiceInfo, 300);
+  }
+  if (synth) { voiceInfo(); synth.addEventListener && synth.addEventListener('voiceschanged', voiceInfo); }
+  $('speak').addEventListener('click', () => say(0.95));
+  $('speakSlow').addEventListener('click', () => say(0.7));
+  $('heard').addEventListener('click', () => mark('s3','speak',true));
+  $('notHeard').addEventListener('click', () => mark('s3','speak',false));
+
+  // 4. recording
+  let mr = null, chunks = [], stream = null;
+  $('rec').addEventListener('click', async () => {
+    if (!navigator.mediaDevices || !window.MediaRecorder) { $('recMsg').textContent = '这个浏览器不支持网页录音。'; mark('s4','rec',false); return; }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      chunks = []; mr = new MediaRecorder(stream);
+      mr.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+      mr.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(chunks, {type: mr.mimeType || 'audio/mp4'});
+        const a = $('play'); a.src = URL.createObjectURL(blob); a.hidden = false;
+        $('recMsg').textContent = '录好了（' + Math.round(blob.size/1024) + ' KB）。点播放键听一下自己的声音。';
+        mark('s4','rec', blob.size > 0, blob.size > 0 ? '通过' : '录到的是空的');
+      };
+      mr.start(); $('rec').disabled = true; $('stop').disabled = false; $('recMsg').textContent = '正在录音……';
+    } catch(e) { $('recMsg').textContent = '没有拿到麦克风权限：' + (e && e.name || e); mark('s4','rec',false); }
+  });
+  $('stop').addEventListener('click', () => { if (mr && mr.state === 'recording') mr.stop(); $('rec').disabled = false; $('stop').disabled = true; });
+
+  // 5. standalone
+  const sa = window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+  $('standalone').textContent = sa ? '现在是从主屏幕图标打开的。' : '现在是在 Safari 里打开的。';
+  if (sa) mark('s5','home', true);
+  show();
+})();
+</script>
+</body>
+</html>

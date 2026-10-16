@@ -949,6 +949,7 @@ function delBtn(x){
 // ================= SETTINGS =================
 function renderSettings(m){
   m.append(el('h1',null,'设置'));
+  m.append(el('div','small muted','程序版本：v5（支持真人感美音音频）'));
   var c=el('section','card');
   function num(label, hint, key, min, max, step){
     var f=el('div','field'); var l=el('label'); l.htmlFor='set-'+key; l.append(document.createTextNode(label), el('span','hint',hint));

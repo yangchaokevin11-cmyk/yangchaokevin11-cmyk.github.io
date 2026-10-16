@@ -362,7 +362,59 @@ function v2(){
   if(b && vq(b)===0){ var m=VOICES.filter(function(v){ return /en[-_]US/i.test(v.lang) && (!a || v.voiceURI!==a.voiceURI) && /Aaron|Fred|Alex|Nicky|Evan|Nathan|Tom/i.test(v.name); })[0]; if(m) b=m; }
   return b || a;
 }
+// ---------- recorded neural audio (audio/index.json + packs) ----------
+var AUD={idx:null, packs:{}, el:null, seq:0, unlocked:false};
+var SILENT='data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA//OEwAAAAAAAAAAAAEluZm8AAAAPAAAABQAAAqAAbW1tbW1tbW1tbW1tbW1tbW1tbZKSkpKSkpKSkpKSkpKSkpKSkpKStra2tra2tra2tra2tra2tra2trbb29vb29vb29vb29vb29vb29vb2///////////////////////////AAAAAExhdmM2MC4zMQAAAAAAAAAAAAAAACQEUAAAAAAAAAKgvT9A1gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//NExAAAAANIAAAAAExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMu//NExFMAAANIAAAAADEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMu//NExKYAAANIAAAAADEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NExKwAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NExKwAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV';
+function audEl(){ if(!AUD.el){ AUD.el=new Audio(); AUD.el.preload='auto'; } return AUD.el; }
+function audUnlock(){ if(AUD.unlocked) return; AUD.unlocked=true; var a=audEl(); if(!a.paused) return; a.src=SILENT; var p=a.play(); if(p&&p.catch) p.catch(function(){}); }
+document.addEventListener('touchend', audUnlock, true); document.addEventListener('click', audUnlock, true);
+fetch('audio/index.json',{cache:'no-cache'}).then(function(r){ return r.ok?r.json():null; }).then(function(j){ if(j && j.v===1 && j.m){ AUD.idx=j; if(TAB==='settings') render(); } }).catch(function(){});
+function packUrl(i){ return 'audio/'+AUD.idx.packs[i]+'?v='+AUD.idx.ver; }
+function loadPack(i){
+  if(AUD.packs[i]) return AUD.packs[i];
+  var url=packUrl(i);
+  var pr=(async function(){
+    var c=null;
+    try { if(window.caches){ c=await caches.open('aud-'+AUD.idx.ver); var hit=await c.match(url); if(hit) return await hit.arrayBuffer(); } } catch(e){ c=null; }
+    var r=await fetch(url); if(!r.ok) throw new Error('pack '+r.status);
+    if(c){ try{ await c.put(url, r.clone()); }catch(e){} }
+    return await r.arrayBuffer();
+  })();
+  AUD.packs[i]=pr; pr.catch(function(){ delete AUD.packs[i]; });
+  return pr;
+}
+function audHits(parts, role){
+  if(!AUD.idx) return null;
+  var out=[];
+  for(var i=0;i<parts.length;i++){ var h=AUD.idx.m[role+'|'+parts[i]] || AUD.idx.m['a|'+parts[i]]; if(!h) return null; out.push(h); }
+  return out;
+}
+async function playAud(hits, opt, parts){
+  var my=++AUD.seq, a=audEl();
+  for(var i=0;i<hits.length;i++){
+    var h=hits[i], buf;
+    try { buf=await loadPack(h[0]); } catch(e){ if(my===AUD.seq) synthSay(parts.slice(i).join('. '), opt); return; }
+    if(my!==AUD.seq) return;
+    var url=URL.createObjectURL(new Blob([buf.slice(h[1],h[1]+h[2])],{type:'audio/mpeg'}));
+    a.src=url; var rate=opt.slow?0.7:1; a.defaultPlaybackRate=rate; a.playbackRate=rate; try{ a.preservesPitch=true; a.webkitPreservesPitch=true; }catch(e){}
+    try { await a.play(); } catch(e){ URL.revokeObjectURL(url); if(my===AUD.seq) synthSay(parts.slice(i).join('. '), opt); return; }
+    await new Promise(function(res){ a.onended=res; a.onpause=res; a.onerror=res; });
+    a.onended=a.onpause=a.onerror=null; URL.revokeObjectURL(url);
+    if(my!==AUD.seq) return;
+    if(i<hits.length-1) await new Promise(function(res){ setTimeout(res,300); });
+  }
+}
+function stopSpeech(){ AUD.seq++; if(AUD.el && !AUD.el.paused) AUD.el.pause(); if(synth) synth.cancel(); }
 function speak(text, opt){
+  opt=opt||{};
+  var parts=(Array.isArray(text)?text:[text]).filter(function(x){ return x; }).map(function(x){ return String(x).trim(); });
+  if(!parts.length) return;
+  stopSpeech();
+  var hits=audHits(parts, opt.alt?'b':'a');
+  if(hits){ playAud(hits, opt, parts); return; }
+  synthSay(parts.join('. '), opt);
+}
+function synthSay(text, opt){
   opt=opt||{};
   if(!synth){ toast('这台设备不支持朗读'); return; }
   synth.cancel();
@@ -378,7 +430,7 @@ function isRec(k){ return rec && recKey===k; }
 function toggleRec(k){
   if(rec && rec.state==='recording'){ rec.stop(); return; }
   if(!navigator.mediaDevices || !window.MediaRecorder){ toast('这台设备不支持网页录音'); return; }
-  if(synth) synth.cancel();
+  stopSpeech();
   navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
     recStream=stream; recChunks=[]; rec=new MediaRecorder(stream); recKey=k;
     rec.ondataavailable=function(e){ if(e.data && e.data.size) recChunks.push(e.data); };
@@ -392,7 +444,7 @@ function toggleRec(k){
     rec.start(); render();
   }).catch(function(){ toast('没有拿到麦克风权限。请到 iPad 设置 → Safari → 麦克风，选择“允许”。', 5000); });
 }
-function playRec(k){ if(!REC[k]) return; if(synth) synth.cancel(); player.src=REC[k]; player.play().catch(function(){}); }
+function playRec(k){ if(!REC[k]) return; stopSpeech(); player.src=REC[k]; player.play().catch(function(){}); }
 function recButtons(k){
   var box=el('span','row');
   var b=btn(isRec(k)?'■ 停止':'● 录音','sm rec'+(isRec(k)?' on':''), function(){ toggleRec(k); });
@@ -647,7 +699,7 @@ function renderWords(m){
         card.append(el('div','zh',it.zh||'（没有填写释义）'));
         if(it.ex){ var exb=el('div','ex',it.ex); card.append(exb); }
         var a2=el('div','acts');
-        a2.append(btn('🔊','sm',function(){ speak(it.ex?it.w+'. '+it.ex:it.w); }));
+        a2.append(btn('🔊','sm',function(){ speak([it.w, it.ex]); }));
         a2.append(btn('没记住','big',function(){ grade(k,false); WS.key=null; render(); }), btn('记得','ok big',function(){ grade(k,true); WS.key=null; render(); }));
         card.append(a2);
         var s=ws(k); card.append(el('div','small muted','已复习 '+(s.n||0)+' 次 · 记得会在 '+INTERVALS[Math.min(s.lv||0,5)]+' 天后再出现'));
@@ -663,7 +715,7 @@ function renderWords(m){
     var a3=el('div','acts');
     a3.append(btn('不认识','big',function(){ screenMark('u'); }), btn('认识','ok big',function(){ screenMark('k'); }));
     card.append(a3);
-    var a4=el('div','acts'); a4.append(btn('🔊 发音','sm',function(){ speak(it2.ex?it2.w+'. '+it2.ex:it2.w); }), btn(WS.peek?'隐藏释义':'看释义','sm',function(){ WS.peek=!WS.peek; render(); }));
+    var a4=el('div','acts'); a4.append(btn('🔊 发音','sm',function(){ speak([it2.w, it2.ex]); }), btn(WS.peek?'隐藏释义':'看释义','sm',function(){ WS.peek=!WS.peek; render(); }));
     if(WS.undo!=null) a4.append(btn('撤销上一个','sm',function(){ undoScreen(); }));
     card.append(a4);
   } else if(phase==='new'){
@@ -671,10 +723,10 @@ function renderWords(m){
     card.append(el('div','small muted','新词 '+(r.nl+1)+' / '+Math.min(r.nt, r.nl+p.q.length)));
     card.append(el('div','hw',it3.w)); if(it3.ph) card.append(el('div','ph',it3.ph));
     card.append(el('div','zh',it3.zh)); if(it3.ex) card.append(el('div','ex',it3.ex));
-    autoSay('n'+it3.k, it3.ex?it3.w+'. '+it3.ex:it3.w);
+    autoSay('n'+it3.k, [it3.w, it3.ex]);
     card.append(el('div','small muted','听发音，大声跟读两遍，再点下一个'));
     var a5=el('div','acts');
-    a5.append(btn('🔊 再听','',function(){ speak(it3.ex?it3.w+'. '+it3.ex:it3.w); }), btn('慢速','',function(){ speak(it3.w,{slow:true}); }));
+    a5.append(btn('🔊 再听','',function(){ speak([it3.w, it3.ex]); }), btn('慢速','',function(){ speak(it3.w,{slow:true}); }));
     a5.append(btn('已跟读，下一个','pri big',function(){ state.words[it3.k]={s:'l',lv:0,due:addDays(TODAY,1),add:TODAY,n:0}; r.nl++; save(); syncWordsTask(); render(); }));
     card.append(a5);
   } else {
@@ -922,15 +974,26 @@ function renderSettings(m){
   c.append(tog('复习时先只听发音','先听再看单词，训练耳朵','ear'));
   c.append(tog('自动朗读','出现新卡片和对话时自动读出来','auto'));
   // voice
-  var vf=el('div','field'); var vl=el('label'); vl.htmlFor='set-voice'; vl.append(document.createTextNode('朗读声音'), el('span','hint','推荐带“高级”的美音，如 Ava、Zoe'));
+  var vf=el('div','field'); var vl=el('label'); vl.htmlFor='set-voice'; vl.append(document.createTextNode('朗读声音'), el('span','hint','没有录好音频的内容（比如你自己记的生词）用这个声音'));
   var sel=el('select'); sel.id='set-voice'; var o0=el('option',null,'自动选择'); o0.value=''; sel.append(o0);
   loadVoices(); VOICES.slice().sort(function(a,b){ return vq(b)-vq(a); }).forEach(function(v){ var o=el('option',null,vlabel(v)); o.value=v.voiceURI||v.name; sel.append(o); }); sel.value=S().voice||'';
   sel.addEventListener('change',function(){ S().voice=sel.value; save(); speak('Hello! This is how I sound.'); });
   vf.append(vl, sel); c.append(vf);
+  var au=el('div','field'); var al=el('label'); al.append(document.createTextNode('真人感美音音频'));
+  if(AUD.idx){
+    var nclip=Object.keys(AUD.idx.m).length;
+    al.append(el('span','hint','已启用：'+nclip+' 条单词和句子用录好的美音播放，其余用下面选的 iPad 声音。'));
+    var dl=btn('全部下载到 iPad','sm',async function(){ dl.disabled=true; var ok=0; for(var i=0;i<AUD.idx.packs.length;i++){ dl.textContent='下载中 '+(i+1)+'/'+AUD.idx.packs.length; try{ await loadPack(i); ok++; }catch(e){} } dl.textContent= ok===AUD.idx.packs.length?'已全部下载':'部分失败，再点一次'; dl.disabled=false; });
+    au.append(al, dl);
+  } else {
+    al.append(el('span','hint','还没有上传音频文件夹（audio），现在用的是 iPad 自带声音。'));
+    au.append(al);
+  }
+  c.append(au);
   var nprem=VOICES.filter(function(v){ return vq(v)>0; }).length;
   var vh=el('div','small muted'); vh.style.padding='0 0 12px';
   vh.textContent = nprem ? '找到 '+nprem+' 个高级/增强语音，程序会自动优先使用。' : '没有找到高级语音。想要更自然的朗读：iPad 设置 → 辅助功能 → 朗读内容 → 声音 → 英语 → 英语（美国），下载 Ava、Zoe 或 Evan 的“高级”版本，然后彻底关掉本程序再打开。';
-  c.append(vh);
+  if(!(AUD.idx && !nprem)) c.append(vh);
   var rf=el('div','field'); var rl=el('label'); rl.htmlFor='set-rate'; rl.append(document.createTextNode('朗读语速'), el('span','hint','0.9 比正常稍慢'));
   var rs=el('select'); rs.id='set-rate'; [0.7,0.8,0.9,1,1.1].forEach(function(v){ var o=el('option',null,String(v)); o.value=v; rs.append(o); }); rs.value=String(S().rate);
   rs.addEventListener('change',function(){ S().rate=Number(rs.value); save(); speak('This is the new speed.'); });

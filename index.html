@@ -16,6 +16,8 @@
   --paper:#F5F6F9; --card:#FFFFFF; --ink:#1B2333; --muted:#5C6578; --line:#E0E4EC;
   --accent:#2445B5; --accent-soft:#E2E8FB; --mark:#F3CD52; --mark-soft:#FBF0C6; --on-mark:#1B2333;
   --ok:#1E7F4F; --ok-soft:#DDF1E6; --danger:#B4372B;
+  --c-words:#2F5BD3; --c-words-soft:#E3EAFC; --c-listen:#0B7A8C; --c-listen-soft:#DDF1F3;
+  --c-scene:#D9480F; --c-scene-soft:#FDE8DE; --c-extra:#7E4BD6; --c-extra-soft:#EEE6FB;
   --f-display:"Songti SC","STSong","Noto Serif SC",serif;
   --f-body:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
   --f-word:"New York","Iowan Old Style",Georgia,serif;
@@ -24,7 +26,8 @@
 }
 @media (prefers-color-scheme:dark){:root{
   --paper:#11151D; --card:#1A1F2A; --ink:#E6E9F0; --muted:#9AA2B4; --line:#2B3241;
-  --accent:#8EA5FF; --accent-soft:#25305A; --mark:#D9B23C; --mark-soft:#4A3E1A; --ok:#5CC98E; --ok-soft:#1D3A2B; --danger:#F08A7E; color-scheme:dark}}
+  --accent:#8EA5FF; --accent-soft:#25305A; --mark:#D9B23C; --mark-soft:#4A3E1A; --ok:#5CC98E; --ok-soft:#1D3A2B; --danger:#F08A7E;
+  --c-words:#8EA5FF; --c-words-soft:#232E52; --c-listen:#4FC3D1; --c-listen-soft:#173539; --c-scene:#FF9A66; --c-scene-soft:#42251A; --c-extra:#B79BFF; --c-extra-soft:#2E2448; color-scheme:dark}}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0}
 body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6;-webkit-text-size-adjust:100%}
@@ -68,7 +71,7 @@ nav.tabs .in{display:flex;max-width:640px;width:100%}
 
 /* timer bar */
 .timerbar{position:sticky;top:max(8px,env(safe-area-inset-top));z-index:10;background:var(--accent);color:var(--card);border-radius:12px;padding:8px 10px 8px 16px;display:flex;align-items:center;gap:10px;justify-content:space-between;box-shadow:0 4px 16px rgba(20,30,60,.18)}
-.timerbar .btn{background:var(--card);color:var(--accent);border:0;min-height:38px}
+.timerbar .btn{background:#fff;color:var(--accent);border:0;min-height:38px}
 
 /* today */
 .hero{display:flex;flex-direction:column;gap:12px}
@@ -78,6 +81,22 @@ nav.tabs .in{display:flex;max-width:640px;width:100%}
 .meter .tick span{position:absolute;top:18px;transform:translateX(-50%);font-size:11px;color:var(--muted);white-space:nowrap}
 .bignum{font-family:var(--f-mono);font-size:34px;line-height:1;font-variant-numeric:tabular-nums}
 .task{display:flex;flex-direction:column;gap:10px;position:relative}
+.m-words{--mc:var(--c-words);--mc-soft:var(--c-words-soft)} .m-listen{--mc:var(--c-listen);--mc-soft:var(--c-listen-soft)}
+.m-scene{--mc:var(--c-scene);--mc-soft:var(--c-scene-soft)} .m-extra{--mc:var(--c-extra);--mc-soft:var(--c-extra-soft)}
+.task .head{display:flex;gap:12px;align-items:center}
+.micon{flex:none;width:42px;height:42px;border-radius:12px;background:var(--mc-soft);color:var(--mc);display:grid;place-items:center}
+.micon svg{width:24px;height:24px}
+.task .eyebrow{color:var(--mc)}
+[class*="m-"] .btn.pri{background:var(--mc);border-color:var(--mc)}
+[class*="m-"] .lesson{color:var(--mc)}
+main[class*="m-"] h1{color:var(--mc)}
+main[class*="m-"] .ph-step.cur{background:var(--mc-soft)}
+main[class*="m-"] .ear{background:var(--mc-soft);color:var(--mc)}
+main.m-scene .bubble.me{background:var(--mc-soft)}
+.timerbar[class*="m-"]{background:var(--mc)} .timerbar[class*="m-"] .btn{color:var(--mc)}
+.pt-bands{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;width:100%;max-width:520px}
+.pt-bands i{display:block;height:8px;border-radius:4px;background:var(--line)}
+.pt-bands i.on{background:var(--mc)}
 .task.done{border-color:var(--ok)}
 .task .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
 .task h3{font-size:18px}
@@ -198,6 +217,8 @@ function btn(text, cls, fn){ var b=el('button','btn'+(cls?' '+cls:''),text); b.t
 var ICON = {
   check:'<svg viewBox="0 0 20 20" fill="none"><path d="M4 10.5l4 4 8-9" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   ear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M18.5 5.5a9 9 0 010 13"/></svg>',
+  listen:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0116 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg>',
+  extra:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 014-4h12"/><path d="M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 01-4 4H4"/></svg>',
   today:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/><path d="M9 15l2 2 4-4"/></svg>',
   words:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="14" rx="2"/><path d="M8 3h11a2 2 0 012 2v12"/><path d="M7 12h5M7 15h3"/></svg>',
   scene:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h11v8H8l-4 3z"/><path d="M15 9h5v8l-3-2h-6v-2"/></svg>',
@@ -221,11 +242,15 @@ var S = function(){ return state.settings; };
 
 // ---------- items ----------
 var ITEMS=[];
-D.words.forEach(function(x){ if(x[3]===0) ITEMS.push({k:'w:'+x[0], w:x[0], ph:x[1], zh:x[2], t:'w'}); });
 D.pv.forEach(function(x){ ITEMS.push({k:'pv:'+x[0], w:x[0], ph:'', zh:x[1], ex:x[2], t:'pv'}); });
+var NG=0; D.words.forEach(function(x){ if(x[3]===0) ITEMS.push({k:'w:'+x[0], w:x[0], ph:x[1], zh:x[2], t:'w', r:NG++}); });
 D.words.forEach(function(x){ if(x[3]===1) ITEMS.push({k:'w:'+x[0], w:x[0], ph:x[1], zh:x[2], t:'aw'}); });
 var BYKEY={}; ITEMS.forEach(function(i){ BYKEY[i.k]=i; });
-var N_NGSL = ITEMS.filter(function(i){ return i.t==='w'; }).length;
+var N_NGSL = NG;
+function skippedIdx(i){ var it=ITEMS[i]; return it.t==='w' && it.r < (state.skip||0); }
+function nextScreen(){ var p=state.screenPos||0; while(p<ITEMS.length && (skippedIdx(p) || state.words[ITEMS[p].k])) p++; return p; }
+function remainingScreen(){ var n=0; for(var i=nextScreen();i<ITEMS.length;i++){ if(!skippedIdx(i) && !state.words[ITEMS[i].k]) n++; } return n; }
+if(!state.order2){ state.order2=1; state.screenPos=0; save(); }
 function item(k){
   if(k.indexOf('my:')===0){ var m=state.my.filter(function(x){ return 'my:'+x.id===k; })[0]; return m?{k:k,w:m.w,ph:'',zh:m.m,ex:m.ex,t:'my'}:null; }
   return BYKEY[k]||null;
@@ -237,7 +262,7 @@ function peek(d){ return state.days[d]||null; }
 function day(d){ if(!state.days[d]) state.days[d]={min:0,tm:{},t:{},sc:0,nl:0,rv:0,note:''}; return state.days[d]; }
 function ensureToday(){
   var r=day(TODAY);
-  if(r.st==null){ var rem=ITEMS.length-state.screenPos; r.st=Math.min(S().batch, rem); r.nt = rem>0 ? 10 : S().newPerDay; save(); }
+  if(r.st==null){ var rem=remainingScreen(); r.st=Math.min(S().batch, rem); r.nt = rem>0 ? 10 : S().newPerDay; save(); }
   return r;
 }
 function queue(){ return ITEMS.filter(function(i){ var s=ws(i.k); return s && s.s==='u'; }); }
@@ -248,11 +273,11 @@ function dueList(){
 }
 function wplan(){
   var r=ensureToday(), q=queue();
-  var screenLeft=Math.max(0, Math.min(r.st-r.sc, ITEMS.length-state.screenPos));
+  var screenLeft=state.placed ? Math.max(0, Math.min(r.st-r.sc, remainingScreen())) : 0;
   var newLeft=Math.max(0, Math.min(r.nt-r.nl, q.length));
   return {r:r, q:q, screenLeft:screenLeft, newLeft:newLeft, due:dueList()};
 }
-function wordsDoneNow(){ var p=wplan(); return p.screenLeft===0 && p.newLeft===0 && p.due.length===0; }
+function wordsDoneNow(){ if(!state.placed) return false; var p=wplan(); return p.screenLeft===0 && p.newLeft===0 && p.due.length===0; }
 function syncWordsTask(){ var r=ensureToday(); if(!r.t.words && !r.t.wOff && wordsDoneNow()){ r.t.words=1; save(); toast('单词任务完成 ✓'); } }
 
 // listening + scene progress (progress-based, not date-based)
@@ -317,14 +342,24 @@ function clock(ms){ var s=Math.floor(ms/1000); return pad(Math.floor(s/60))+':'+
 var synth=window.speechSynthesis||null, VOICES=[];
 function loadVoices(){ if(!synth) return; VOICES=synth.getVoices().filter(function(v){ return /^en[-_]/i.test(v.lang); }); }
 if(synth){ loadVoices(); if(synth.addEventListener) synth.addEventListener('voiceschanged', loadVoices); }
+function vq(v){ var s=(v.voiceURI||'')+' '+v.name; return /premium|高级/i.test(s)?3:/enhanced|增强/i.test(s)?2:0; }
+function vlabel(v){ var q=vq(v); return v.name+(q===3&&!/premium|高级/i.test(v.name)?'（高级）':q===2&&!/enhanced|增强/i.test(v.name)?'（增强）':'')+' · '+v.lang; }
+function bestUS(exclude){
+  var c=VOICES.filter(function(v){ return /en[-_]US/i.test(v.lang) && (!exclude || v.voiceURI!==exclude.voiceURI); });
+  var sc=function(v){ return vq(v)*10+(/Samantha|Ava|Zoe|Evan|Nathan|Tom/i.test(v.name)?1:0); };
+  c.sort(function(a,b){ return sc(b)-sc(a); });
+  return c[0]||null;
+}
 function v1(){
   if(!VOICES.length) loadVoices();
-  var pick=VOICES.filter(function(v){ return v.name===S().voice; })[0];
+  var pick=VOICES.filter(function(v){ return v.voiceURI===S().voice || v.name===S().voice; })[0];
+  if(!pick && !S().voice){ var b=bestUS(); if(b && vq(b)>0) return b; }
   return pick || VOICES.filter(function(v){ return /en[-_]US/i.test(v.lang) && /Samantha/i.test(v.name); })[0] || VOICES.filter(function(v){ return /en[-_]US/i.test(v.lang); })[0] || VOICES[0] || null;
 }
 function v2(){
-  var a=v1(); var us=VOICES.filter(function(v){ return /en[-_]US/i.test(v.lang) && (!a || v.name!==a.name); });
-  return us.filter(function(v){ return /Aaron|Fred|Alex|Nicky|Daniel/i.test(v.name); })[0] || us[0] || a;
+  var a=v1(); var b=bestUS(a);
+  if(b && vq(b)===0){ var m=VOICES.filter(function(v){ return /en[-_]US/i.test(v.lang) && (!a || v.voiceURI!==a.voiceURI) && /Aaron|Fred|Alex|Nicky|Evan|Nathan|Tom/i.test(v.name); })[0]; if(m) b=m; }
+  return b || a;
 }
 function speak(text, opt){
   opt=opt||{};
@@ -411,7 +446,7 @@ function renderNav(){
 // ---------- timer bar ----------
 function timerBar(){
   var t=state.timer; if(!t) return null;
-  var bar=el('div','timerbar'); bar.id='timerbar';
+  var bar=el('div','timerbar m-'+t.task); bar.id='timerbar';
   var left=el('div'); left.append(el('div','small','正在计时 · '+(TASKNAME[t.task]||'')));
   var c=el('div','mono'); c.id='timerClock'; c.style.fontSize='22px'; c.textContent=clock(Date.now()-t.start); left.append(c);
   bar.append(left, btn('暂停并记录','sm',function(){ stopTimer(); render(); }));
@@ -429,10 +464,10 @@ function timerControls(task){
 
 // ================= TODAY =================
 function taskCard(o){
-  var c=el('section','card task'+(o.done?' done':''));
+  var c=el('section','card task m-'+o.task+(o.done?' done':''));
   var top=el('div','top');
-  var head=el('div','stack'); head.style.gap='2px';
-  head.append(el('div','eyebrow',o.when), el('h3',null,o.title));
+  var head=el('div','head'); var ic=el('div','micon'); ic.innerHTML=ICON[o.task];
+  var ht=el('div','stack'); ht.style.gap='0'; ht.append(el('div','eyebrow',o.when), el('h3',null,o.title)); head.append(ic, ht);
   var ck=el('button','check'); ck.type='button'; ck.innerHTML=ICON.check; ck.setAttribute('aria-label', o.done?'标记为未完成':'标记为完成');
   if(o.toggle) ck.addEventListener('click', o.toggle); else ck.disabled=true;
   top.append(head, ck); c.append(top);
@@ -474,13 +509,13 @@ function renderToday(m){
 
   // 1 words
   var p=wplan();
-  var screening = state.screenPos < ITEMS.length || p.screenLeft>0;
+  var screening = remainingScreen()>0;
   var wb=[];
   var line=el('div','muted');
   line.textContent=(p.due.length?'复习 '+p.due.length+' 个 · ':'')+(screening?'筛词 '+r.sc+'/'+r.st+' · ':'')+'新词 '+r.nl+'/'+(p.screenLeft?r.nt:Math.min(r.nt, r.nl+p.q.length));
   wb.push(line);
-  if(state.screenPos===0 && r.sc===0) wb.push(el('div','small muted','前 10 天左右先“筛词”：快速过一遍约 3900 个高频词和短语，认识的跳过。之后每天学 '+S().newPerDay+' 个真正不会的词。'));
-  var wbtn=el('div','row'); wbtn.append(btn(r.t.words?'再练一会儿':'开始背单词','pri',function(){ startTimer('words'); go('words'); })); wb.push(wbtn);
+  if(!state.placed){ line.textContent='第一次使用：先做 3 分钟单词水平测试'; wb.push(el('div','small muted','测试会估计你已经认识多少高频词，太简单的部分直接跳过。之后先筛常用短语动词和你还不熟的词，每天学 '+S().newPerDay+' 个真正不会的。')); }
+  var wbtn=el('div','row'); wbtn.append(btn(!state.placed?'开始水平测试':r.t.words?'再练一会儿':'开始背单词','pri',function(){ startTimer('words'); go('words'); })); wb.push(wbtn);
   m.append(taskCard({when:'早上 · 约 15 分钟', title:'单词', task:'words', done:!!r.t.words, body:wb,
     toggle:function(){ if(r.t.words){ r.t.words=0; r.t.wOff=1; } else { r.t.words=1; r.t.wOff=0; } save(); render(); }}));
 
@@ -581,6 +616,7 @@ function grade(k, ok){
 }
 function renderWords(m){
   var p=wplan(), r=p.r;
+  if(!state.placed){ renderPlacement(m); return; }
   var phase = p.due.length ? 'review' : p.screenLeft ? 'screen' : p.newLeft ? 'new' : 'done';
   // header
   var h=el('div','row between'); h.append(el('h1',null,'单词'), timerControls('words')); m.append(h);
@@ -617,11 +653,11 @@ function renderWords(m){
       }
     }
   } else if(phase==='screen'){
-    var it2=ITEMS[state.screenPos];
-    card.append(el('div','small muted', it2.t==='pv'?'常用短语动词':it2.t==='aw'?'学术词汇':'高频词 · 第 '+(state.screenPos+1)+' / '+N_NGSL));
+    var sp=nextScreen(), it2=ITEMS[sp];
+    card.append(el('div','small muted', it2.t==='pv'?'常用短语动词（口语必备）':it2.t==='aw'?'学术词汇':'高频词 · 第 '+(it2.r+1)+' / '+N_NGSL));
     card.append(el('div','hw',it2.w)); if(it2.ph) card.append(el('div','ph',it2.ph));
     var mean=el('div','zh',it2.zh); mean.hidden=!WS.peek; card.append(mean);
-    autoSay('s'+state.screenPos, it2.w);
+    autoSay('s'+sp, it2.w);
     card.append(el('div','small muted','看到或听到就能马上说出意思，才算“认识”'));
     var a3=el('div','acts');
     a3.append(btn('不认识','big',function(){ screenMark('u'); }), btn('认识','ok big',function(){ screenMark('k'); }));
@@ -643,7 +679,7 @@ function renderWords(m){
   } else {
     card.append(el('div','hw','✓'), el('div','zh','今天的单词完成了'));
     var a6=el('div','acts');
-    if(state.screenPos<ITEMS.length) a6.append(btn('再筛 100 个','',function(){ r.st+=100; save(); render(); }));
+    if(remainingScreen()>0) a6.append(btn('再筛 100 个','',function(){ r.st+=100; save(); render(); }));
     if(queue().length) a6.append(btn('再学 10 个新词','',function(){ r.nt+=10; save(); render(); }));
     a6.append(btn('回到今天','pri',function(){ if(state.timer&&state.timer.task==='words') stopTimer(); go('today'); }));
     card.append(a6);
@@ -653,16 +689,64 @@ function renderWords(m){
   var learned=0, mastered=0, known=0, unknown=0;
   for(var kk in state.words){ var s2=state.words[kk]; if(s2.s==='l') learned++; else if(s2.s==='m') mastered++; else if(s2.s==='k') known++; else if(s2.s==='u') unknown++; }
   var st=el('div','small muted');
-  st.textContent='筛过 '+state.screenPos+' / '+ITEMS.length+' 个 · 本来就认识 '+known+' · 待学 '+unknown+' · 学习中 '+learned+' · 已掌握 '+mastered;
+  st.textContent=(state.skip?'已跳过前 '+state.skip+' 个最简单的高频词 · ':'')+'还剩 '+remainingScreen()+' 个待筛 · 认识 '+known+' · 待学 '+unknown+' · 学习中 '+learned+' · 已掌握 '+mastered;
   m.append(st);
+}
+var PT=null;
+var BANDS=[[0,500],[500,1000],[1000,1500],[1500,2000],[2000,2500],[2500,0]];
+function ptBuild(){
+  var ng=ITEMS.filter(function(i){ return i.t==='w'; }), q=[];
+  BANDS.forEach(function(b,bi){
+    var a=b[0], e=b[1]||ng.length, pool=ng.slice(a,e).filter(function(i){ return /^[a-z]{3,}$/.test(i.w); });
+    for(var k=0;k<8;k++){ var j=Math.floor(Math.random()*pool.length); q.push({it:pool.splice(j,1)[0], b:bi}); }
+  });
+  return {q:q, i:0, ans:[], show:false};
+}
+function ptResult(){
+  var known=BANDS.map(function(){ return 0; });
+  PT.ans.forEach(function(a,i){ if(a) known[PT.q[i].b]++; });
+  var start=N_NGSL;
+  for(var b=0;b<BANDS.length;b++){ if(known[b]<7){ start=BANDS[b][0]; break; } }
+  return {known:known, skip:start};
+}
+function renderPlacement(m){
+  var h=el('div','row between'); h.append(el('h1',null,'单词水平测试'), timerControls('words')); m.append(h);
+  if(!PT) PT=ptBuild();
+  var card=el('section','card flash');
+  if(PT.i < PT.q.length){
+    var it=PT.q[PT.i].it;
+    var bands=el('div','pt-bands'); for(var b=0;b<BANDS.length;b++){ bands.append(el('i', b<=PT.q[PT.i].b?'on':'')); }
+    card.append(el('div','small muted','第 '+(PT.i+1)+' / '+PT.q.length+' 个 · 越往后越难'), bands);
+    card.append(el('div','hw',it.w)); if(it.ph) card.append(el('div','ph',it.ph));
+    var mean=el('div','zh',it.zh); mean.hidden=!PT.show; card.append(mean);
+    autoSay('pt'+PT.i, it.w);
+    card.append(el('div','small muted','能马上说出中文意思，才点“认识”。凭第一感觉，不要犹豫太久。'));
+    var a=el('div','acts');
+    a.append(btn('不认识','big',function(){ PT.ans.push(false); PT.i++; PT.show=false; render(); }), btn('认识','ok big',function(){ PT.ans.push(true); PT.i++; PT.show=false; render(); }));
+    card.append(a);
+    var a2=el('div','acts'); a2.append(btn('🔊 发音','sm',function(){ speak(it.w); }), btn(PT.show?'隐藏释义':'核对释义','sm',function(){ PT.show=!PT.show; render(); }));
+    if(PT.i>0) a2.append(btn('上一个','sm',function(){ PT.i--; PT.ans.pop(); render(); }));
+    card.append(a2);
+  } else {
+    var res=ptResult();
+    card.append(el('div','hw',res.skip>=N_NGSL?'2800+':String(res.skip)));
+    card.append(el('div','zh', res.skip>=N_NGSL ? '最常用的 2800 个高频词你基本都认识，全部跳过。' : res.skip===0 ? '先从最常用的词开始筛，认识的会很快跳过。' : '最常用的前 '+res.skip+' 个词你基本都认识，直接跳过。'));
+    var tbl=el('div','small muted'); tbl.textContent='各难度段认识的个数：'+res.known.map(function(k,i){ return (BANDS[i][0]+1)+'–'+(BANDS[i][1]||N_NGSL)+' 段 '+k+'/8'; }).join('，');
+    card.append(tbl);
+    card.append(el('div','small muted','接下来先筛 108 个口语常用短语动词，再筛剩下的高频词和 959 个学术词。只有你不会的词才会进入学习和复习。'));
+    var a3=el('div','acts');
+    a3.append(btn('重新测试','',function(){ PT=ptBuild(); render(); }), btn('开始筛词','pri big',function(){ state.skip=res.skip; state.placed=1; state.screenPos=0; var r=ensureToday(); r.st=Math.max(r.sc, Math.min(S().batch, remainingScreen()+r.sc)); save(); PT=null; render(); }));
+    card.append(a3);
+  }
+  m.append(card);
 }
 function autoSay(key, text){ if(!S().auto || WS.spoken===key) return; WS.spoken=key; speak(text); }
 function screenMark(v){
-  var r=ensureToday(), it=ITEMS[state.screenPos];
-  WS.undo={pos:state.screenPos, prev:state.words[it.k]||null};
+  var r=ensureToday(), pos=nextScreen(), it=ITEMS[pos];
+  WS.undo={pos:pos, prev:state.words[it.k]||null};
   if(!state.words[it.k] || state.words[it.k].s==='k' || state.words[it.k].s==='u') state.words[it.k]={s:v};
-  state.screenPos++; r.sc++; WS.peek=false;
-  if(state.screenPos>=ITEMS.length){ r.nt=Math.max(r.nt, S().newPerDay); toast('全部筛完了！以后每天学 '+S().newPerDay+' 个新词', 4000); }
+  state.screenPos=pos+1; r.sc++; WS.peek=false;
+  if(remainingScreen()===0){ r.nt=Math.max(r.nt, S().newPerDay); toast('全部筛完了！以后每天学 '+S().newPerDay+' 个新词', 4000); }
   save(); syncWordsTask(); render();
 }
 function undoScreen(){
@@ -816,7 +900,7 @@ function renderSettings(m){
   function num(label, hint, key, min, max, step){
     var f=el('div','field'); var l=el('label'); l.htmlFor='set-'+key; l.append(document.createTextNode(label), el('span','hint',hint));
     var i=el('input'); i.type='number'; i.id='set-'+key; i.min=min; i.max=max; i.step=step; i.value=S()[key]; i.style.width='90px';
-    i.addEventListener('change',function(){ var v=Math.max(min,Math.min(max,Number(i.value)||S()[key])); S()[key]=v; i.value=v; if(key==='newPerDay' && state.screenPos>=ITEMS.length){ var r=ensureToday(); r.nt=v; } save(); toast('已保存'); });
+    i.addEventListener('change',function(){ var v=Math.max(min,Math.min(max,Number(i.value)||S()[key])); S()[key]=v; i.value=v; if(key==='newPerDay' && remainingScreen()===0){ var r=ensureToday(); r.nt=v; } save(); toast('已保存'); });
     f.append(l,i); return f;
   }
   function tog(label, hint, key){
@@ -829,14 +913,23 @@ function renderSettings(m){
   c.append(num('保底（分钟）','很忙的日子至少学这么久，每周最多 2 次','floor',5,60,5));
   c.append(num('每天新词数','筛词结束后每天学多少个新词','newPerDay',5,50,5));
   c.append(num('每天筛词数','筛词阶段每天过多少个词','batch',50,800,50));
+  var kf=el('div','field'); var kl=el('label'); kl.htmlFor='set-skip'; kl.append(document.createTextNode('跳过前 N 个高频词'), el('span','hint','水平测试自动设定，也可以手动调整（0–'+N_NGSL+'）'));
+  var ki=el('input'); ki.type='number'; ki.id='set-skip'; ki.min=0; ki.max=N_NGSL; ki.step=100; ki.value=state.skip||0; ki.style.width='90px';
+  ki.addEventListener('change',function(){ var v=Math.max(0,Math.min(N_NGSL,Math.round(Number(ki.value)||0))); state.skip=v; state.placed=1; state.screenPos=0; ki.value=v; save(); toast('已保存'); });
+  kf.append(kl,ki); c.append(kf);
+  var rt=el('div','field'); var rl0=el('label'); rl0.append(document.createTextNode('重新做单词水平测试'), el('span','hint','已经学过的词不受影响')); rt.append(rl0, btn('重新测试','sm',function(){ state.placed=0; PT=null; save(); go('words'); })); c.append(rt);
   c.append(tog('复习时先只听发音','先听再看单词，训练耳朵','ear'));
   c.append(tog('自动朗读','出现新卡片和对话时自动读出来','auto'));
   // voice
-  var vf=el('div','field'); var vl=el('label'); vl.htmlFor='set-voice'; vl.append(document.createTextNode('朗读声音'), el('span','hint','推荐 Samantha（美音女声）'));
+  var vf=el('div','field'); var vl=el('label'); vl.htmlFor='set-voice'; vl.append(document.createTextNode('朗读声音'), el('span','hint','推荐带“高级”的美音，如 Ava、Zoe'));
   var sel=el('select'); sel.id='set-voice'; var o0=el('option',null,'自动选择'); o0.value=''; sel.append(o0);
-  loadVoices(); VOICES.forEach(function(v){ var o=el('option',null,v.name+' · '+v.lang); o.value=v.name; sel.append(o); }); sel.value=S().voice||'';
+  loadVoices(); VOICES.slice().sort(function(a,b){ return vq(b)-vq(a); }).forEach(function(v){ var o=el('option',null,vlabel(v)); o.value=v.voiceURI||v.name; sel.append(o); }); sel.value=S().voice||'';
   sel.addEventListener('change',function(){ S().voice=sel.value; save(); speak('Hello! This is how I sound.'); });
   vf.append(vl, sel); c.append(vf);
+  var nprem=VOICES.filter(function(v){ return vq(v)>0; }).length;
+  var vh=el('div','small muted'); vh.style.padding='0 0 12px';
+  vh.textContent = nprem ? '找到 '+nprem+' 个高级/增强语音，程序会自动优先使用。' : '没有找到高级语音。想要更自然的朗读：iPad 设置 → 辅助功能 → 朗读内容 → 声音 → 英语 → 英语（美国），下载 Ava、Zoe 或 Evan 的“高级”版本，然后彻底关掉本程序再打开。';
+  c.append(vh);
   var rf=el('div','field'); var rl=el('label'); rl.htmlFor='set-rate'; rl.append(document.createTextNode('朗读语速'), el('span','hint','0.9 比正常稍慢'));
   var rs=el('select'); rs.id='set-rate'; [0.7,0.8,0.9,1,1.1].forEach(function(v){ var o=el('option',null,String(v)); o.value=v; rs.append(o); }); rs.value=String(S().rate);
   rs.addEventListener('change',function(){ S().rate=Number(rs.value); save(); speak('This is the new speed.'); });
@@ -878,6 +971,7 @@ function render(){
   if(ae && ae.id==='note'){ day(TODAY).note=ae.value; save(); ae.blur(); }
   var y=window.scrollY;
   m.replaceChildren();
+  m.className = TAB==='words'?'m-words':TAB==='scene'?'m-scene':'';
   var tb=timerBar(); if(tb) m.append(tb);
   if(TAB==='today') renderToday(m);
   else if(TAB==='words') renderWords(m);

@@ -310,6 +310,23 @@ details.why summary{cursor:pointer;color:var(--mc);font-weight:600;font-size:14p
 .pron .heard-en{font-family:var(--f-word);font-size:17px;line-height:1.5}
 .pl-stage .pron{max-width:560px;width:100%;text-align:left}
 .pl-live{font-family:var(--f-word);font-size:20px;line-height:1.4;min-height:1.4em;max-width:30em}
+.fab{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:calc(var(--nav-h) + 18px + env(safe-area-inset-bottom));z-index:25;width:58px;height:58px;border-radius:50%;border:0;background:var(--accent);color:#fff;display:grid;place-items:center;box-shadow:0 6px 18px rgba(20,30,60,.28);cursor:pointer}
+.fab svg{width:26px;height:26px}
+main{padding-bottom:calc(var(--nav-h) + 100px + env(safe-area-inset-bottom))}
+.ft-stage{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;padding:16px 0}
+.ft-mic{width:96px;height:96px;border-radius:50%;border:0;background:var(--accent);color:#fff;display:grid;place-items:center;cursor:pointer;box-shadow:0 8px 24px rgba(36,69,181,.3)}
+.ft-mic svg{width:42px;height:42px}
+.ft-mic.on{background:var(--danger);animation:ftpulse 1.4s infinite}
+@keyframes ftpulse{0%{box-shadow:0 0 0 0 rgba(180,55,43,.45)}70%{box-shadow:0 0 0 18px rgba(180,55,43,0)}100%{box-shadow:0 0 0 0 rgba(180,55,43,0)}}
+.ft-say{font-family:var(--f-word);font-size:22px;line-height:1.45}
+.ft-bad{color:var(--danger);text-decoration:underline wavy;text-underline-offset:4px}
+.ft-good{color:var(--ok);font-weight:700}
+.ft-ok{color:var(--ok);font-weight:600}
+.ft-fix{background:var(--paper);border-radius:10px;padding:8px 12px;font-family:var(--f-word);font-size:17px}
+.ft-fix .catchip{margin-left:8px;font-family:var(--f-body);background:var(--accent-soft);color:var(--accent)}
+.ft-corr{background:var(--ok-soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+textarea.ft-want{font-family:var(--f-word);font-size:20px;min-height:90px}
+.pron .bad{color:var(--danger)}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -681,7 +698,7 @@ function recDone(my){
   if(RS!==my) return;
   if(my.stream) my.stream.getTracks().forEach(function(t){ t.stop(); });
   recReset();
-  try{ if(ACX && ACX.state==='running') ACX.suspend(); }catch(e){}
+  micRelease();
   var k=my.key, b=null;
   if(my.n > (my.rate||48000)*0.3) b=wavBlob(my.pcm, my.n, my.rate);
   else if(my.chunks.length) b=new Blob(my.chunks,{type:(my.mr && my.mr.mimeType)||'audio/mp4'});
@@ -1388,7 +1405,7 @@ function plOpen(title, steps, mode, task, regen){
   var ov=$('player');
   if(!ov){ ov=el('div','player'); ov.id='player'; ov.setAttribute('role','dialog'); ov.setAttribute('aria-modal','true'); document.body.append(ov); }
   ov.hidden=false; ov.scrollTop=0; document.body.classList.add('noscroll');
-  wakeOn(); plRun();
+  wakeOn(); plRun(); ftFab();
 }
 function plStop(){ if(SAY && SAY.key==='pl') sayCancel(); if(PL) PL.listening=false; clearTimeout(PLT); clearInterval(PLI); clearTimeout(PLW); PLT=PLI=PLW=null; stopSpeech(); }
 function plClose(){ plStop(); if(PL && PL.n) save(); PL=null; wakeOff(); var ov=$('player'); if(ov){ ov.hidden=true; ov.replaceChildren(); } document.body.classList.remove('noscroll'); render(); }
@@ -1814,7 +1831,7 @@ function renderExpr(m){
 // ================= PRONUNCIATION CHECK =================
 var SRC=window.SpeechRecognition||window.webkitSpeechRecognition||null, PR={}, PR_ACTIVE=null, PR_KEY=null, PR_OFF=false;
 function pronOn(){ return !!SRC && S().pron && !PR_OFF; }
-document.addEventListener('visibilitychange', function(){ if(document.hidden){ if(PR_ACTIVE) pronCancel(); if(SAY) sayCancel(); if(RS.state==='recording') finishRec(); } });
+document.addEventListener('visibilitychange', function(){ if(document.hidden){ if(PR_ACTIVE) pronCancel(); if(FT && FT.phase==='listen'){ FT.phase='idle'; } if(SAY) sayCancel(); if(FT) ftDraw(); if(RS.state==='recording') finishRec(); } });
 function normWords(t){
   var C={"i'm":"i am","you're":"you are","we're":"we are","they're":"they are","he's":"he is","she's":"she is","it's":"it is","that's":"that is","what's":"what is","there's":"there is","let's":"let us","i've":"i have","you've":"you have","we've":"we have","they've":"they have","i'll":"i will","you'll":"you will","we'll":"we will","it'll":"it will","i'd":"i would","you'd":"you would","don't":"do not","doesn't":"does not","didn't":"did not","can't":"cannot","won't":"will not","isn't":"is not","aren't":"are not","wasn't":"was not","weren't":"were not","couldn't":"could not","wouldn't":"would not","shouldn't":"should not","haven't":"have not","hasn't":"has not","gonna":"going to","wanna":"want to","gotta":"got to","ok":"okay"};
   var w=String(t).toLowerCase().replace(/[’‘`]/g,"'").replace(/[^a-z0-9' ]+/g,' ').split(/\s+/).filter(Boolean);
@@ -1836,57 +1853,77 @@ function pronBtn(key, target){
   if(!on && (PR_ACTIVE || recBusy() || SAY)) b.disabled=true;
   return b;
 }
-var PR_FAIL=0, PR_T={};
+// why a recognition attempt failed, in plain words
+function recogWhy(code){
+  return code==='network' ? '语音识别需要联网，现在连不上网。'
+    : code==='audio-capture' ? '麦克风被占用了（多半是刚才的录音还没完全释放）。'
+    : code==='not-allowed' || code==='service-not-allowed' ? '没有语音识别的权限：在 iPad 设置 → 隐私与安全性 里允许“语音识别”和“麦克风”。'
+    : code==='no-speech' || code==='none' || !code ? '没听到声音：靠近一点、声音大一点，点了按钮马上开口说。'
+    : code==='language-not-supported' ? '这台 iPad 不支持英语识别：在 设置 → 通用 → 键盘 里添加英语键盘并打开“听写”。'
+    : '语音识别出错了（'+code+'），再试一次。';
+}
+// release the microphone held by the recorder, so speech recognition can use it
+function micRelease(){ try{ if(ACX){ ACX.close(); } }catch(e){} ACX=null; }
+var PR_FAIL=0, PR_T={}, PRH={}, PR_CUR=null;
 function pronClear(){ clearTimeout(PR_T.silence); clearTimeout(PR_T.hard); clearTimeout(PR_T.dog); PR_T={}; }
-function pronCancel(){ var r=PR_ACTIVE; PR_ACTIVE=null; PR_KEY=null; pronClear(); if(r){ try{ r.onend=null; r.abort(); }catch(e){} } }
-function pronFinish(){ if(PR_ACTIVE){ try{ PR_ACTIVE.stop(); }catch(e){} PR_T.dog=setTimeout(function(){ pronEnd(); }, 2500); } }
-var PR_CUR=null;
+function pronCancel(){ var r=PR_ACTIVE; PR_ACTIVE=null; PR_KEY=null; PR_CUR=null; pronClear(); if(r){ try{ r.onend=null; r.abort(); }catch(e){} } }
+function pronFinish(){ if(PR_ACTIVE){ try{ PR_ACTIVE.stop(); }catch(e){} clearTimeout(PR_T.dog); PR_T.dog=setTimeout(function(){ pronEnd(); }, 2500); } }
 function pronEnd(){
   if(!PR_CUR) return;
   var c=PR_CUR; PR_CUR=null; pronClear();
   if(PR_ACTIVE){ try{ PR_ACTIVE.onend=null; PR_ACTIVE.abort(); }catch(e){} }
   PR_ACTIVE=null; PR_KEY=null;
-  if(c.text){ PR_FAIL=0; var tw=normWords(c.target), al=lcsAlign(tw, normWords(c.text)); PR[c.key]={score: tw.length?Math.round(al.match/tw.length*100):0, text:c.text, ops:al.ops}; }
-  else if(!c.err){
-    PR_FAIL++;
-    if(PR_FAIL>=3){ S().pron=false; save(); toast('这台 iPad 上，网页里的语音识别一直没有返回结果，已经关闭“测发音”。可以继续用“录音 → ⇄ 对比”自己听。想再试的话，在设置里重新打开。', 8000); }
-    else toast('没有识别到。请确认已联网，并在 iPad 设置 → 通用 → 键盘 里打开“启用听写”，然后靠近一点、说完点“■ 说完了”。', 6500);
+  // microphone busy: free it and try once more, without the user doing anything
+  if(!c.text && c.err==='audio-capture' && !c.retried){ micRelease(); setTimeout(function(){ pronStart(c.key, c.target, true); }, 400); return; }
+  if(c.text){
+    PR_FAIL=0;
+    var tw=normWords(c.target), al=lcsAlign(tw, normWords(c.text)), score=tw.length?Math.round(al.match/tw.length*100):0;
+    var h=PRH[c.key]=PRH[c.key]||[]; h.push(score);
+    PR[c.key]={score:score, text:c.text, ops:al.ops, n:h.length, prev:h.length>1?h[h.length-2]:null, best:Math.max.apply(null,h)};
+    if(normWords(c.text).length>=2){ state.heard=(state.heard||0)+1; save(); }
+  } else {
+    if(c.err==='not-allowed' || c.err==='service-not-allowed'){ S().pron=false; save(); }
+    else if(!c.err || c.err==='no-speech'){ PR_FAIL++; }
+    PR[c.key]={fail:recogWhy(c.err||'none'), n:(PRH[c.key]||[]).length};
+    if(PR_FAIL>=4){ PR_FAIL=0; toast('已经连续几次没听到声音。可以去“我的 → 设置 → 检查录音”看看麦克风是否正常。', 6000); }
   }
   render();
 }
-function pronStart(key, target){
+function pronStart(key, target, retried){
   if(recBusy()){ toast('先停止录音'); return; }
   if(SAY) sayCancel();
   pronCancel(); stopSpeech();
   var r; try { r=new SRC(); } catch(e){ PR_OFF=true; toast('这台设备不支持网页语音识别'); render(); return; }
   r.lang='en-US'; r.interimResults=true; r.maxAlternatives=1; r.continuous=true;
-  PR_CUR={key:key, target:target, text:'', err:''};
-  var cur=PR_CUR;
+  var cur=PR_CUR={key:key, target:target, text:'', err:'', retried:!!retried};
+  delete PR[key]; // a new attempt never shows the old score
   r.onresult=function(ev){
     if(PR_CUR!==cur) return;
     var t=''; for(var i=0;i<ev.results.length;i++){ t+=ev.results[i][0].transcript+' '; }
     cur.text=t.trim();
+    var lv=document.querySelector('[data-prlive="'+key+'"]'); if(lv) lv.textContent=cur.text;
     clearTimeout(PR_T.silence); PR_T.silence=setTimeout(function(){ pronFinish(); }, 1600);
   };
-  r.onerror=function(ev){
-    if(PR_CUR!==cur) return;
-    var c=ev.error; cur.err=c;
-    if(c==='not-allowed' || c==='service-not-allowed'){ S().pron=false; save(); toast('语音识别没有权限：请在 iPad 设置 → 隐私与安全性 里允许“语音识别”和“麦克风”，再到本程序设置里重新打开“发音检查”。', 8000); }
-    else if(c==='network'){ toast('语音识别需要联网，联网后再试'); }
-    else if(c==='no-speech'){ cur.err=''; }
-    else if(c==='aborted'){ cur.err='aborted'; }
-  };
+  r.onerror=function(ev){ if(PR_CUR!==cur) return; cur.err=ev.error||'unknown'; if(cur.err==='aborted') cur.err=''; };
   r.onend=function(){ if(PR_CUR===cur) pronEnd(); };
-  try { r.start(); PR_ACTIVE=r; PR_KEY=key; } catch(e){ PR_CUR=null; PR_ACTIVE=null; PR_KEY=null; toast('启动语音识别失败'); render(); return; }
+  try { r.start(); PR_ACTIVE=r; PR_KEY=key; }
+  catch(e){ PR_CUR=null; PR_ACTIVE=null; PR_KEY=null; if(!retried){ micRelease(); setTimeout(function(){ pronStart(key, target, true); }, 400); return; } PR[key]={fail:'语音识别没能启动，再点一次试试。'}; render(); return; }
   PR_T.hard=setTimeout(function(){ pronFinish(); }, 12000);
   render();
 }
 function pronView(key){
+  if(PR_KEY===key && PR_CUR){
+    var lv=el('div','pron'); lv.append(el('b',null,'正在听：')); var t=el('span',null,PR_CUR.text||'请读这一句，读完停一下'); t.dataset.prlive=key; lv.append(t); return lv;
+  }
   var p=PR[key]; if(!p) return null;
   var box=el('div','pron');
-  var head=el('div'); head.append(el('b',null,(p.score>=90?'很好 ':p.score>=70?'不错 ':'再练练 ')+p.score+'%'), document.createTextNode('　识别为：“'+p.text+'”'));
-  box.append(head);
-  var w=el('div'); p.ops.forEach(function(o){ if(o[0]==='+') return; var sp=el('span',o[0]==='='?'ok':'bad',o[1]+' '); w.append(sp); });
+  if(p.fail){ box.append(el('b','bad','这次没有结果：'), document.createTextNode(p.fail)); return box; }
+  var head=el('div');
+  head.append(el('b',null,(p.n>1?'第 '+p.n+' 次：':'')+(p.score>=90?'很好 ':p.score>=70?'不错 ':'再练练 ')+p.score+'%'));
+  if(p.prev!=null) head.append(el('span',p.score>p.prev?'ok':'muted', p.score>p.prev?'　比上次高 '+(p.score-p.prev)+' 分':p.score===p.prev?'　和上次一样':'　上次 '+p.prev+'%'));
+  if(p.n>2) head.append(el('span','muted','　最好 '+p.best+'%'));
+  box.append(head, el('div','small muted','识别为：“'+p.text+'”'));
+  var w=el('div'); p.ops.forEach(function(o){ if(o[0]==='+') return; w.append(el('span',o[0]==='='?'ok':'bad',o[1]+' ')); });
   box.append(w);
   if(p.score<100) box.append(el('div','small muted','红色的词没被识别出来，重点听这几个词的原声再跟读。'));
   return box;
@@ -1910,7 +1947,7 @@ function sayStart(key, target, opt){
     var t=''; for(var i=0;i<ev.results.length;i++) t+=ev.results[i][0].transcript+' ';
     me.text=t.trim();
     if(opt.live) opt.live(me.text); else { var e=document.querySelector('[data-saylive]'); if(e) e.textContent=me.text; }
-    clearTimeout(me.t1); me.t1=setTimeout(sayStop, 1500);
+    clearTimeout(me.t1); me.t1=setTimeout(sayStop, opt.silence||1500);
   };
   r.onerror=function(ev){ if(SAY!==me) return; me.err=ev.error; if(ev.error==='not-allowed'||ev.error==='service-not-allowed') me.denied=true; };
   r.onend=function(){ if(SAY===me) sayEnd(); };
@@ -1923,8 +1960,9 @@ function sayStop(){ var me=SAY; if(!me) return; try{ me.r.stop(); }catch(e){} cl
 function sayEnd(){
   var me=SAY; if(!me) return; SAY=null; clearTimeout(me.t1); clearTimeout(me.t2); clearTimeout(me.dog);
   try{ me.r.onend=null; me.r.abort(); }catch(e){}
+  if(!me.text && me.err==='audio-capture' && !me.opt.retried){ micRelease(); var o2=Object.assign({}, me.opt, {retried:true}); setTimeout(function(){ if(!sayStart(me.key, me.target, o2) && o2.onDone) o2.onDone('', {err:'audio-capture'}); }, 400); return; }
   if(me.text) countHeard(me.text);
-  SAYRES[me.key]={text:me.text, target:me.target, err:me.text?'':(me.denied?'denied':'none')};
+  SAYRES[me.key]={text:me.text, target:me.target, err:me.text?'':(me.denied?'denied':(me.err||'none'))};
   if(me.opt.onDone) me.opt.onDone(me.text, me); else render();
 }
 function countHeard(t){ if(normWords(t).length>=2){ state.heard=(state.heard||0)+1; save(); } }
@@ -1944,7 +1982,7 @@ function sayView(key){
 function heardBox(text, target, err, mode){
   var box=el('div','pron heard');
   if(!text){
-    box.append(el('b',null,'这次没听清你说的。'), el('div','small muted', err==='denied' ? '语音识别没有权限：在 iPad 设置里允许“语音识别”和“麦克风”。' : '靠近一点、声音大一点，开始以后马上说。'));
+    box.append(el('b',null,'这次没听清你说的。'), el('div','small muted', err==='denied' ? recogWhy('not-allowed') : recogWhy(err)));
     return box;
   }
   var tw=normWords(target||''), said=normWords(text), set={};
@@ -1994,7 +2032,7 @@ function recTest(){
         log(bytes>0, '方式二（MediaRecorder）录到 '+chunks.length+' 段，共 '+Math.round(bytes/1024)+' KB');
         if(n>rate*0.3) RT.url=URL.createObjectURL(wavBlob(pcm, n, rate));
         else if(bytes) RT.url=URL.createObjectURL(new Blob(chunks,{type:mr.mimeType||'audio/mp4'}));
-        RT.done=true; try{ if(ctx) ctx.suspend(); }catch(e){} render();
+        RT.done=true; micRelease(); render();
       };
       if(mr && mr.state!=='inactive'){ mr.onstop=fin; try{ mr.requestData(); }catch(e){} try{ mr.stop(); }catch(e){ fin(); } setTimeout(fin, 1500); } else fin();
     }, 4000);
@@ -2009,6 +2047,149 @@ function recTestCard(){
   if(RT){ var ul=el('div','pron'); RT.steps.forEach(function(s){ var d=el('div'); d.append(el('span',s[0]?'ok':'bad',s[0]?'✓ ':'✗ '), document.createTextNode(s[1])); ul.append(d); }); box.append(ul);
     if(RT.done) box.append(el('div','small muted','录音时程序会同时用两种方式录，只要有一种成功就能用。如果两种都失败，把这一块截图发给 Claude。')); }
   return box;
+}
+
+// ================= FREE TALK: say anything, see what was understood, get corrections =================
+// Recognition: the iPad's own speech recognition. Corrections: LanguageTool's free public API (needs internet).
+// History lives in state.talk (newest first, up to 300).
+var FT=null; // {phase:'idle'|'listen'|'done', text, live, err, id}
+var LT_URL='https://api.languagetool.org/v2/check';
+var LT_SKIP={CASING:1, PUNCTUATION:1, TYPOGRAPHY:1, STYLE:1, TYPOS:0};
+var LT_CAT={GRAMMAR:'语法', TYPOS:'拼写', CONFUSED_WORDS:'易混词', COLLOCATIONS:'搭配', SEMANTICS:'意思', REDUNDANCY:'重复', MISC:'其他', NONSTANDARD_PHRASES:'不地道', COMPOUNDING:'合成词', AMERICAN_ENGLISH_STYLE:'美式说法', BRITISH_ENGLISH:'英式说法'};
+function talkList(){ if(!state.talk) state.talk=[]; return state.talk; }
+function talkGet(id){ return talkList().filter(function(x){ return x.id===id; })[0]; }
+function tidy(t){ t=String(t||'').trim().replace(/\s+/g,' '); if(!t) return t; t=t.charAt(0).toUpperCase()+t.slice(1); if(!/[.!?]$/.test(t)) t+='.'; return t; }
+function ftFab(){
+  var b=$('ftfab');
+  if(!b){ b=el('button','fab'); b.id='ftfab'; b.type='button'; b.setAttribute('aria-label','说给它听');
+    b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0"/><path d="M12 17.5V21"/></svg>';
+    b.addEventListener('click', ftOpen); document.body.append(b); }
+  b.hidden = !!PL || !!FT || TAB==='dict';
+}
+function ftOpen(){
+  if(recBusy()){ toast('先停止录音'); return; }
+  if(PR_ACTIVE) pronCancel();
+  stopSpeech();
+  FT={phase:'idle', text:'', live:'', err:'', id:null, want:'', showAll:false};
+  var ov=$('ftpad'); if(!ov){ ov=el('div','player'); ov.id='ftpad'; ov.setAttribute('role','dialog'); ov.setAttribute('aria-modal','true'); document.body.append(ov); }
+  ov.hidden=false; ov.scrollTop=0; document.body.classList.add('noscroll');
+  ftFab(); ftDraw();
+}
+function ftClose(){ if(SAY && SAY.key==='free') sayCancel(); FT=null; var ov=$('ftpad'); if(ov){ ov.hidden=true; ov.replaceChildren(); } document.body.classList.remove('noscroll'); ftFab(); render(); }
+function ftListen(){
+  if(!SRC){ toast('这台设备不支持语音识别'); return; }
+  stopSpeech();
+  FT.phase='listen'; FT.live=''; FT.err=''; FT.text=''; FT.id=null; FT.want='';
+  var ok=sayStart('free', '', {quiet:true, max:45000, silence:2500,
+    live:function(t){ if(!FT) return; FT.live=t; var e=document.querySelector('#ftpad [data-ftlive]'); if(e) e.textContent=t; },
+    onDone:function(t, me){ if(!FT) return; FT.phase='done'; FT.text=t; FT.err=t?'':(me.denied?'not-allowed':(me.err||'none')); if(t) ftSave(t); ftDraw(); }});
+  if(!ok){ FT.phase='done'; FT.err='start'; }
+  ftDraw();
+}
+function ftSave(t){
+  var it={id:Date.now().toString(36), t:tidy(t), d:new Date().toISOString(), st:'new', m:null, c:null, want:''};
+  var L=talkList(); L.unshift(it); if(L.length>300) L.length=300;
+  FT.id=it.id; save(); ftCheck(it);
+}
+// grammar check through LanguageTool; marks the entry 'ok' (no problems), 'fix' (has corrections) or 'off' (could not check)
+function ftCheck(it){
+  if(!navigator.onLine){ it.st='off'; save(); if(FT) ftDraw(); return; }
+  it.st='busy'; if(FT) ftDraw();
+  var ctl=window.AbortController?new AbortController():null, timer=setTimeout(function(){ if(ctl) ctl.abort(); }, 12000);
+  var body='language=en-US&motherTongue=zh-CN&text='+encodeURIComponent(it.t);
+  fetch(LT_URL,{method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:body, signal:ctl?ctl.signal:undefined})
+    .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json(); })
+    .then(function(j){
+      clearTimeout(timer);
+      var ms=(j.matches||[]).filter(function(m){ var c=m.rule&&m.rule.category&&m.rule.category.id; return !LT_SKIP[c] && m.replacements && m.replacements.length; })
+        .map(function(m){ return {o:m.offset, l:m.length, w:it.t.substr(m.offset,m.length), r:m.replacements[0].value, msg:m.message||'', cat:(m.rule&&m.rule.category&&m.rule.category.id)||''}; });
+      it.m=ms; it.c=ftApply(it.t, ms); it.st=ms.length?'fix':'ok'; save(); if(FT) ftDraw(); else render();
+    })
+    .catch(function(){ clearTimeout(timer); it.st='off'; save(); if(FT) ftDraw(); else render(); });
+}
+function ftApply(t, ms){
+  var out='', p=0; ms.slice().sort(function(a,b){ return a.o-b.o; }).forEach(function(m){ if(m.o<p) return; out+=t.slice(p,m.o)+m.r; p=m.o+m.l; });
+  return out+t.slice(p);
+}
+function ftMarked(it){ // the sentence with the problem parts underlined
+  var d=el('div','ft-say'), p=0, t=it.t;
+  (it.m||[]).slice().sort(function(a,b){ return a.o-b.o; }).forEach(function(m){ if(m.o<p) return; d.append(document.createTextNode(t.slice(p,m.o))); d.append(el('span','ft-bad',t.substr(m.o,m.l)||'＿')); p=m.o+m.l; });
+  d.append(document.createTextNode(t.slice(p))); return d;
+}
+function ftAddErr(it){
+  if(!it.c || it.er) return;
+  var id='t'+it.id; state.errs.unshift({id:id, w:it.t, r:it.c, n:(it.m||[]).map(function(m){ return m.w+' → '+m.r; }).join('；'), date:TODAY});
+  state.words['er:'+id]={s:'l',lv:0,due:addDays(TODAY,1),add:TODAY,n:0}; it.er=1; save(); toast('已加入错误本，明天开始在“表达”里复习'); ftDraw();
+}
+function ftCopy(it){
+  var msg='请帮我纠正这句英语口语，说明哪里不对，再给我 2 种更地道的说法：\n'+it.t+(it.want?'\n（我本来想说：'+it.want+'）':'');
+  copy(msg);
+}
+function ftResult(it, full){
+  var c=el('section','card stack');
+  var top=el('div','row between'); top.append(el('span','eyebrow','它听到的'), el('span','small muted', new Date(it.d).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})));
+  c.append(top, it.m && it.m.length ? ftMarked(it) : el('div','ft-say',it.t));
+  var r1=el('div','row'); r1.append(btn('🔊 听一遍','sm',function(){ speak(it.t); }), btn('📋 复制给 Claude 详细修改','sm',function(){ ftCopy(it); })); c.append(r1);
+  // corrections
+  var g=el('div','stack'); g.style.gap='8px';
+  if(it.st==='busy') g.append(el('div','small muted','正在检查语法……'));
+  else if(it.st==='ok') g.append(el('div','ft-ok','✓ 没发现语法问题。它能听懂，语法也对，说得好！'));
+  else if(it.st==='off'){ var o=el('div','row'); o.append(el('span','small muted','没联网（或者检查服务连不上），这次只显示识别结果。'), btn('重新检查语法','sm',function(){ ftCheck(it); })); g.append(o); }
+  else if(it.st==='fix'){
+    g.append(el('b',null,'有 '+it.m.length+' 处可以改：'));
+    it.m.forEach(function(m){ var row=el('div','ft-fix'); var l=el('div'); l.append(el('span','ft-bad',m.w||'（这里少了词）'), document.createTextNode(' → '), el('span','ft-good',m.r)); if(LT_CAT[m.cat]) l.append(el('span','catchip',LT_CAT[m.cat])); row.append(l); if(m.msg) row.append(el('div','small muted',m.msg)); g.append(row); });
+    var cs=el('div','ft-corr'); cs.append(el('div','eyebrow','改好的句子'), el('div','ft-say',it.c));
+    var r2=el('div','row'); r2.append(btn('🔊 听改好的','sm',function(){ speak(it.c); }), it.er ? el('span','chip full','已在错误本') : btn('加入错误本','sm pri',function(){ ftAddErr(it); }));
+    cs.append(r2); g.append(cs);
+  }
+  c.append(g);
+  if(full){
+    // compare with what you meant
+    var wb=el('div','stack'); wb.style.gap='8px';
+    wb.append(el('div','small muted','识别出来的不是你想说的？把你本来想说的话写在下面（可以用 Apple Pencil 直接写），程序会标出哪些词没被听懂，那些词就是要练发音的地方。'));
+    var ta=el('textarea','ft-want'); ta.placeholder='我本来想说的是……'; ta.value=it.want||'';
+    var cmp=el('div','row'); cmp.append(btn('对比','sm pri',function(){ it.want=ta.value.trim(); save(); ftDraw(); }));
+    wb.append(ta, cmp);
+    if(it.want){
+      var tw=normWords(it.want), al=lcsAlign(tw, normWords(it.t)), miss=al.ops.filter(function(o){ return o[0]==='-'; }).map(function(o){ return o[1]; });
+      var box=el('div','pron');
+      box.append(el('b',null, miss.length ? '这几个词它没听出来：' : '你想说的词它全听出来了！'));
+      var w=el('div','heard-en'); al.ops.forEach(function(o){ if(o[0]==='+') return; w.append(el('span',o[0]==='='?'ok':'bad',o[1]+' ')); }); box.append(w);
+      if(miss.length){ var r3=el('div','row'); r3.append(btn('🔊 听这句的标准读音','sm',function(){ speak(it.want); })); box.append(el('div','small muted','红色的词就是发音需要练的地方。听标准读音，跟读几遍，再说一次试试。'), r3); }
+      wb.append(box);
+    }
+    c.append(wb);
+  }
+  return c;
+}
+function ftDraw(){
+  var ov=$('ftpad'); if(!ov || !FT) return;
+  var box=el('div','pl-in');
+  var top=el('div','row between'); var tt=el('div'); tt.append(el('div','eyebrow','说给它听'), el('div','small muted','想到什么就用英语说，它告诉你听懂了什么、哪里可以改'));
+  top.append(tt, btn('✕ 关闭','sm',ftClose)); box.append(top);
+  var st=el('div','ft-stage');
+  var mic=el('button','ft-mic'+(FT.phase==='listen'?' on':'')); mic.type='button';
+  mic.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(FT.phase==='listen'?'<rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/>':'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0"/><path d="M12 17.5V21"/>')+'</svg>';
+  mic.setAttribute('aria-label', FT.phase==='listen'?'说完了':'开始说');
+  mic.addEventListener('click',function(){ if(FT.phase==='listen') sayStop(); else ftListen(); });
+  st.append(mic);
+  if(FT.phase==='listen'){ st.append(el('div','pl-who me','正在听……说完停两秒，或者点一下按钮')); var lv=el('div','pl-live',FT.live||' '); lv.dataset.ftlive='1'; st.append(lv); }
+  else if(FT.phase==='idle') st.append(el('div','pl-zh','点麦克风，用英语说一句或一段话。说什么都行：今天做了什么、想问别人的问题、心里正想着的事。'));
+  else if(!FT.text) st.append(el('div','pron', '这次没有识别到内容。'+recogWhy(FT.err==='start'?'':FT.err)));
+  box.append(st);
+  if(FT.phase==='done' && FT.text && FT.id){ var it=talkGet(FT.id); if(it){ box.append(ftResult(it, true)); var again=el('div','row'); again.style.justifyContent='center'; again.append(btn('🎙 再说一次','pri',ftListen)); box.append(again); } }
+  // history
+  var L=talkList();
+  if(L.length){
+    var h=el('details','card'); h.open=FT.showAll; h.addEventListener('toggle',function(){ FT.showAll=h.open; });
+    var fixes=L.filter(function(x){ return x.st==='fix'; }).length;
+    h.append(el('summary',null,'我说过的话（'+L.length+' 条'+(fixes?'，其中 '+fixes+' 条有修改建议':'')+'）'));
+    var hl=el('div','stack'); hl.style.marginTop='10px';
+    L.slice(0, 60).forEach(function(x){ if(FT.id===x.id) return; var r=ftResult(x, false); var del=btn('删除','sm',function(){ state.talk=talkList().filter(function(y){ return y.id!==x.id; }); save(); ftDraw(); }); r.lastChild.append(del); hl.append(r); });
+    h.append(hl); box.append(h);
+  }
+  box.append(el('div','small muted','语法检查用的是联网的免费服务 LanguageTool，没联网时只显示识别结果，联网后可以点“重新检查语法”。注意：iPad 识别时常会把句子自动修得更通顺，所以有些错误会被它“悄悄改掉”。想要最准确的修改，点“复制给 Claude”。'));
+  ov.replaceChildren(box);
 }
 
 // ================= DICTATION =================
@@ -2358,7 +2539,7 @@ function delBtn(x){
 // ================= SETTINGS =================
 function renderSettings(m){
   var sh=el('div','row'); sh.append(btn('‹ 返回','sm',function(){ go('me'); }), el('h1',null,'设置')); m.append(sh);
-  m.append(el('div','small muted','程序版本：v10（录音改用双通道 · “说给它听”语音识别 · 录音自检）'));
+  m.append(el('div','small muted','程序版本：v11（测发音修复 · 随时“说给它听” · 语法纠错 · 说话记录）'));
   var c=el('section','card');
   function num(label, hint, key, min, max, step){
     var f=el('div','field'); var l=el('label'); l.htmlFor='set-'+key; l.append(document.createTextNode(label), el('span','hint',hint));
@@ -2496,6 +2677,7 @@ function render(){
   renderNav();
   window.scrollTo(0,y);
   afterRender();
+  ftFab();
 }
 var ACHBUSY=false;
 function afterRender(){

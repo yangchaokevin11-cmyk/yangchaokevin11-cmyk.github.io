@@ -346,6 +346,8 @@ textarea.ft-want{font-family:var(--f-word);font-size:20px;min-height:90px}
 .boot{padding:40vh 0 0;text-align:center;color:var(--muted);font-size:15px}
 .updbar{position:fixed;left:50%;transform:translateX(-50%);top:max(12px,env(safe-area-inset-top));z-index:70;background:var(--ink);color:var(--paper);border-radius:14px;padding:8px 10px 8px 16px;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:14.5px}
 .updbar .btn:not(.pri){background:transparent;color:var(--paper);border-color:rgba(255,255,255,.35)}
+.syncchip{margin-top:4px;border:0;background:none;padding:0;font:inherit;font-size:12.5px;color:var(--muted);cursor:pointer}
+.syncchip.bad{color:var(--danger)}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -404,7 +406,7 @@ function load(){
   try { var s=JSON.parse(localStorage.getItem(LS)); if(s && s.v===3){ s.settings=Object.assign({},DEF,s.settings||{}); s.my=s.my||[]; s.words=s.words||{}; s.days=s.days||{}; s.prog=s.prog||{listen:0,scene:0}; s.prog.sound=s.prog.sound||0; s.errs=s.errs||[]; s.monthRec=s.monthRec||{}; s.ach=s.ach||{}; s.dictMiss=s.dictMiss||[]; s.storyEd=s.storyEd||{}; s.storyDone=s.storyDone||{}; return s; } } catch(e){}
   return {v:3, created:TODAY, settings:Object.assign({},DEF), prog:{listen:0,scene:0,sound:0}, screenPos:0, words:{}, my:[], days:{}, timer:null, errs:[], monthRec:{}, ach:{}, dictMiss:[], storyEd:{}, storyDone:{}};
 }
-function save(){ try { localStorage.setItem(LS, JSON.stringify(state)); } catch(e){ toast('保存失败：iPad 存储空间不足或被禁用'); } }
+function save(){ try { localStorage.setItem(LS, JSON.stringify(state)); } catch(e){ toast('保存失败：iPad 存储空间不足或被禁用'); } if(typeof schedSync==='function') schedSync(); }
 var S = function(){ return state.settings; };
 
 // ---------- items ----------
@@ -794,6 +796,14 @@ function lessonTitle(x){
 function stageOfIdx(i){ var x=D.listen[Math.min(i, D.listen.length-1)]; var s=x.s==='rev'?x.of:x.s; return SERIES[s].stage; }
 function bili(k){ return 'https://search.bilibili.com/all?keyword='+encodeURIComponent(k); }
 function biliApp(k){ return 'bilibili://search?keyword='+encodeURIComponent(k); }
+// phones and tablets open the Bilibili app; computers open the web search, in Edge on Windows
+function isMobileDev(){ var u=navigator.userAgent||''; return /iPhone|iPad|iPod|Android/.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints>1); }
+function openBiliWeb(k){
+  var url=bili(k), u=navigator.userAgent||'';
+  if(/Windows/.test(u) && !/Edg\//.test(u)){ location.href='microsoft-edge:'+url; return; }
+  var w=window.open(url,'_blank','noopener'); if(!w) location.href=url;
+}
+function goBili(k){ if(isMobileDev()) openBili(k); else openBiliWeb(k); }
 // open the Bilibili app; if it does not open within 2 s (app missing), offer the web search instead
 function openBili(k){
   var t0=Date.now(), left=false;
@@ -875,6 +885,9 @@ function renderToday(m){
   // header
   var h=el('div','row between');
   var hl=el('div'); hl.append(el('div','eyebrow', cn(TODAY)+' 周'+WD[d.getDay()]+' · 学习第 '+studyDayNo()+' 天'), el('h1',null,greet()));
+  if(cloudToken()){ var sy=el('button','syncchip'+(state.syncErr?' bad':'')); sy.type='button';
+    sy.textContent = SYNC_BUSY ? '☁ 正在同步…' : state.syncErr ? '☁ 同步失败，点这里看原因' : state.syncLast ? '☁ 已同步 '+new Date(state.syncLast).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}) : '☁ 还没同步';
+    sy.addEventListener('click',function(){ go('settings'); }); hl.append(sy); }
   var lv=el('button','lvchip'); lv.type='button'; lv.append(el('b',null,'Lv '+G.level), el('span',null,lvTitle(G.level))); lv.addEventListener('click',function(){ go('me'); });
   h.append(hl, lv); m.append(h);
   // hero
@@ -984,14 +997,16 @@ function renderToday(m){
     steps.forEach(function(s){ stp.append(el('li',null,s)); }); lb.push(stp);
     if(x.s!=='rev'){
       var kwRow=el('div','row'); var kw=SERIES[x.s].kw(x);
-      var a=btn('打开 B站 App 搜索','pri',function(){ startTimer('listen'); openBili(kw); });
-      var aw=el('a','btn sm','网页搜索'); aw.href=bili(kw); aw.target='_blank'; aw.rel='noopener'; aw.addEventListener('click',function(){ startTimer('listen'); });
+      var mob=isMobileDev();
+      var a=btn(mob?'打开 B站 App 搜索':'在 Edge 里打开 B站搜索','pri',function(){ startTimer('listen'); goBili(kw); });
+      var aw=mob ? el('a','btn sm','网页搜索') : document.createTextNode('');
+      if(mob){ aw.href=bili(kw); aw.target='_blank'; aw.rel='noopener'; aw.addEventListener('click',function(){ startTimer('listen'); }); }
       kwRow.append(a, aw, el('span','kw',kw), btn('复制','sm',function(){ copy(kw); }));
       lb.push(kwRow);
       lb.push(el('div','small muted','B站找不到这一课？换个关键词（比如去掉 Level）再试；还是没有，就听同系列的相邻一课。'));
     } else {
       var rr=el('div','row');
-      for(var n=x.from;n<=x.to;n++){ (function(n){ var k=SERIES[x.of].kw({n:n}); var a2=btn('第 '+n+(x.of==='sme'?' 次':' '+(SERIES[x.of].unit||'课')),'sm',function(){ openBili(k); }); rr.append(a2); })(n); }
+      for(var n=x.from;n<=x.to;n++){ (function(n){ var k=SERIES[x.of].kw({n:n}); var a2=btn('第 '+n+(x.of==='sme'?' 次':' '+(SERIES[x.of].unit||'课')),'sm',function(){ goBili(k); }); rr.append(a2); })(n); }
       lb.push(rr);
     }
     var rk='retell-'+TODAY; ensureRecLoaded(rk);
@@ -2572,7 +2587,7 @@ if('serviceWorker' in navigator){ try{ navigator.serviceWorker.addEventListener(
 // pull -> merge -> push. Merging never throws progress away: counters take the larger value,
 // lists are combined, minutes are kept per device and added up.
 var DEV=(function(){ try{ var d=localStorage.getItem('en-dev'); if(!d){ d='d'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); localStorage.setItem('en-dev', d); } return d; }catch(e){ return 'd0'; } })();
-var LOCAL_ONLY={settings:1, timer:1, gistId:1, cloudLast:1, cloudErr:1, syncLast:1, syncErr:1, lastSnap:1, plOpt:1, dictMiss:1, storyEd:0};
+var LOCAL_ONLY={cloudMeta:1, settings:1, timer:1, gistId:1, cloudLast:1, cloudErr:1, syncLast:1, syncErr:1, lastSnap:1, plOpt:1, dictMiss:1, storyEd:0, syncLog:1, syncMeta:1};
 function tomb(id){ if(!state.tomb) state.tomb={}; state.tomb[id]=TODAY; }
 // minutes per device for one day; days from before syncing existed count as one shared entry '_'
 function dayMd(r){ if(!r) return {}; if(r.md) return r.md; return (r.min||0) ? {'_':r.min} : {}; }
@@ -2637,16 +2652,24 @@ function mergeState(L, R){
 }
 function canon(o){ // stable JSON for comparing, without device-only fields
   if(Array.isArray(o)) return '['+o.map(canon).join(',')+']';
-  if(o && typeof o==='object'){ return '{'+Object.keys(o).filter(function(k){ return !LOCAL_ONLY[k]; }).sort().map(function(k){ return JSON.stringify(k)+':'+canon(o[k]); }).join(',')+'}'; }
+  if(o && typeof o==='object'){ return '{'+Object.keys(o).filter(function(k){ return !LOCAL_ONLY[k] && o[k]!==undefined; }).sort().map(function(k){ return JSON.stringify(k)+':'+canon(o[k]); }).join(',')+'}'; }
   return JSON.stringify(o===undefined?null:o);
 }
-var SYNC_BUSY=false, SYNC_AT=0;
+var SYNC_BUSY=false, SYNC_AT=0, IN_SYNC=false, SYNCT=null;
+function devName(){ var u=navigator.userAgent||''; return /iPad/.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1)?'iPad':/iPhone/.test(u)?'iPhone':/Android/.test(u)?'安卓手机':/Windows/.test(u)?'Windows 电脑':/Mac/.test(u)?'Mac':'其他设备'; }
+function schedSync(){
+  if(IN_SYNC || !cloudToken()) return;
+  clearTimeout(SYNCT);
+  var wait=Math.max(20000, 60000-(Date.now()-SYNC_AT));
+  SYNCT=setTimeout(function(){ cloudSync(false); }, wait);
+}
+function syncLog(msg){ var L=state.syncLog||(state.syncLog=[]); L.unshift([Date.now(), msg]); if(L.length>6) L.length=6; }
 function cloudSync(force){
   if(SYNC_BUSY || !cloudToken()) return Promise.resolve(false);
   if(!navigator.onLine){ state.syncErr='没联网'; return Promise.resolve(false); }
   if(!force && Date.now()-SYNC_AT < 60000) return Promise.resolve(false);
-  SYNC_BUSY=true; SYNC_AT=Date.now();
-  var mine=canon(state), remoteCanon='';
+  SYNC_BUSY=true; IN_SYNC=true; SYNC_AT=Date.now(); clearTimeout(SYNCT);
+  var mine=canon(state), remoteCanon='', remoteMeta=null, pulled=false, pushed=false;
   return cloudFind().then(function(id){
     if(!id) return null;
     return gh('/gists/'+id).then(function(g){
@@ -2656,17 +2679,19 @@ function cloudSync(force){
       return get.then(function(t){ try{ return JSON.parse(t); }catch(e){ return null; } });
     });
   }).then(function(remote){
-    if(remote && remote.v===3 && remote.days){ remoteCanon=canon(remote); mergeState(state, remote); }
+    if(remote && remote.v===3 && remote.days){ remoteCanon=canon(remote); remoteMeta=remote.syncMeta||null; mergeState(state, remote); }
     var merged=canon(state);
-    var changedHere = merged!==mine;
+    var changedHere = merged!==mine; pulled=changedHere;
     save();
     if(changedHere) renderSoft();
+    state.cloudMeta=remoteMeta;
     if(merged===remoteCanon) return true;
+    state.syncMeta={by:DEV, name:devName(), at:Date.now()};
     var files={'english-backup.json':{content:JSON.stringify(state)}};
     var p = state.gistId ? gh('/gists/'+state.gistId,{method:'PATCH', body:{files:files}}) : gh('/gists',{method:'POST', body:{description:'English check-in backup', public:false, files:files}});
-    return p.then(function(j){ state.gistId=j.id; state.cloudLast=Date.now(); return true; });
-  }).then(function(){ state.syncLast=Date.now(); state.syncErr=''; state.cloudErr=''; save(); SYNC_BUSY=false; if(TAB==='settings') render(); return true; })
-    .catch(function(e){ state.syncErr=String(e.message||e); save(); SYNC_BUSY=false; if(TAB==='settings') render(); return false; });
+    return p.then(function(j){ state.gistId=j.id; state.cloudLast=Date.now(); state.cloudMeta=state.syncMeta; pushed=true; return true; });
+  }).then(function(){ state.syncLast=Date.now(); state.syncErr=''; state.cloudErr=''; syncLog((pulled?'收到其他设备的进度并合并':'云端没有新内容')+(pushed?'，已上传本机进度':'，两边已经一致')); save(); SYNC_BUSY=false; IN_SYNC=false; if(TAB==='settings'||TAB==='today') renderSoft(); return true; })
+    .catch(function(e){ state.syncErr=String(e.message||e); syncLog('失败：'+state.syncErr); save(); SYNC_BUSY=false; IN_SYNC=false; if(TAB==='settings'||TAB==='today') renderSoft(); return false; });
 }
 // re-draw after a merge, but never in the middle of something the user is doing
 function renderSoft(){
@@ -2847,7 +2872,7 @@ function delBtn(x){
 // ================= SETTINGS =================
 function renderSettings(m){
   var sh=el('div','row'); sh.append(btn('‹ 返回','sm',function(){ go('me'); }), el('h1',null,'设置')); m.append(sh);
-  m.append(el('div','small muted','程序版本：v13（多设备同步 · 英文释义 · 每日经典 · 秒开）'));
+  m.append(el('div','small muted','程序版本：v13.2（多设备同步 · 英文释义 · 每日经典 · 秒开）'));
   var c=el('section','card');
   function num(label, hint, key, min, max, step){
     var f=el('div','field'); var l=el('label'); l.htmlFor='set-'+key; l.append(document.createTextNode(label), el('span','hint',hint));
@@ -2925,8 +2950,10 @@ function renderSettings(m){
     var stt=state.syncLast ? '上次同步：'+new Date(state.syncLast).toLocaleString('zh-CN') : (state.cloudLast ? '上次云端备份：'+new Date(state.cloudLast).toLocaleString('zh-CN') : '还没有同步过');
     cb.append(el('div','small', stt+(SYNC_BUSY?'（正在同步…）':'')));
     if(state.syncErr) cb.append(el('div','small muted','最近一次失败：'+state.syncErr+'（不翻墙时 GitHub 有时连不上，程序会自动重试）'));
-    cb.append(el('div','small muted','已开启。打开程序、离开程序时，以及学习中每 5 分钟，会和云端合并一次。合并不会丢进度：单词按练得多的那份算，课程进度取最远的，学习时间按设备分别记录后相加。'));
+    cb.append(el('div','small muted','已开启。打开程序、离开程序时会同步；学习中每有新进度，大约 1 分钟内也会自动同步。合并不会丢进度：单词按练得多的那份算，课程进度取最远的，学习时间按设备分别记录后相加。'));
     cb.append(el('div','small muted','让其他设备也同步：在手机、电脑的浏览器里打开同一个网址，进入“我的 → 设置”，粘贴同一个令牌即可。令牌只存在本机，不会被同步出去。'));
+    cb.append(el('div','small','本机：'+devName()+(state.cloudMeta&&state.cloudMeta.at?'　·　云端最新一份来自：'+state.cloudMeta.name+'，'+new Date(state.cloudMeta.at).toLocaleString('zh-CN'):'')));
+    if(state.syncLog && state.syncLog.length){ var lg=el('div','pron'); state.syncLog.forEach(function(x){ lg.append(el('div',null,new Date(x[0]).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})+'　'+x[1])); }); cb.append(lg); }
     var cr=el('div','row');
     var nb=btn(SYNC_BUSY?'同步中…':'立即同步','sm pri',function(){ nb.disabled=true; nb.textContent='同步中…'; cloudSync(true).then(function(ok){ toast(ok?'已同步':'同步失败：'+(state.syncErr||''), 4000); render(); }); });
     if(SYNC_BUSY) nb.disabled=true;

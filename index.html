@@ -793,6 +793,15 @@ function lessonTitle(x){
 }
 function stageOfIdx(i){ var x=D.listen[Math.min(i, D.listen.length-1)]; var s=x.s==='rev'?x.of:x.s; return SERIES[s].stage; }
 function bili(k){ return 'https://search.bilibili.com/all?keyword='+encodeURIComponent(k); }
+function biliApp(k){ return 'bilibili://search?keyword='+encodeURIComponent(k); }
+// open the Bilibili app; if it does not open within 2 s (app missing), offer the web search instead
+function openBili(k){
+  var t0=Date.now(), left=false;
+  var onHide=function(){ if(document.hidden) left=true; };
+  document.addEventListener('visibilitychange', onHide);
+  location.href=biliApp(k);
+  setTimeout(function(){ document.removeEventListener('visibilitychange', onHide); if(!left && !document.hidden) toast('没打开 B站 App？点旁边的“网页搜索”试试', 4000); }, 2200);
+}
 
 // ---------- navigation ----------
 var TAB='today';
@@ -975,14 +984,14 @@ function renderToday(m){
     steps.forEach(function(s){ stp.append(el('li',null,s)); }); lb.push(stp);
     if(x.s!=='rev'){
       var kwRow=el('div','row'); var kw=SERIES[x.s].kw(x);
-      var a=el('a','btn pri','去 B站搜索'); a.href=bili(kw); a.target='_blank'; a.rel='noopener';
-      a.addEventListener('click',function(){ startTimer('listen'); });
-      kwRow.append(a, el('span','kw',kw), btn('复制','sm',function(){ copy(kw); }));
+      var a=btn('打开 B站 App 搜索','pri',function(){ startTimer('listen'); openBili(kw); });
+      var aw=el('a','btn sm','网页搜索'); aw.href=bili(kw); aw.target='_blank'; aw.rel='noopener'; aw.addEventListener('click',function(){ startTimer('listen'); });
+      kwRow.append(a, aw, el('span','kw',kw), btn('复制','sm',function(){ copy(kw); }));
       lb.push(kwRow);
       lb.push(el('div','small muted','B站找不到这一课？换个关键词（比如去掉 Level）再试；还是没有，就听同系列的相邻一课。'));
     } else {
       var rr=el('div','row');
-      for(var n=x.from;n<=x.to;n++){ (function(n){ var k=SERIES[x.of].kw({n:n}); var a2=el('a','btn sm','第 '+n+(x.of==='sme'?' 次':' '+(SERIES[x.of].unit||'课'))); a2.href=bili(k); a2.target='_blank'; a2.rel='noopener'; rr.append(a2); })(n); }
+      for(var n=x.from;n<=x.to;n++){ (function(n){ var k=SERIES[x.of].kw({n:n}); var a2=btn('第 '+n+(x.of==='sme'?' 次':' '+(SERIES[x.of].unit||'课')),'sm',function(){ openBili(k); }); rr.append(a2); })(n); }
       lb.push(rr);
     }
     var rk='retell-'+TODAY; ensureRecLoaded(rk);
@@ -2730,7 +2739,7 @@ function delBtn(x){
 // ================= SETTINGS =================
 function renderSettings(m){
   var sh=el('div','row'); sh.append(btn('‹ 返回','sm',function(){ go('me'); }), el('h1',null,'设置')); m.append(sh);
-  m.append(el('div','small muted','程序版本：v12.1（英文释义 · 每日经典阅读 · 秒开）'));
+  m.append(el('div','small muted','程序版本：v12.2（英文释义 · 每日经典阅读 · 秒开 · 直接打开 B站 App）'));
   var c=el('section','card');
   function num(label, hint, key, min, max, step){
     var f=el('div','field'); var l=el('label'); l.htmlFor='set-'+key; l.append(document.createTextNode(label), el('span','hint',hint));

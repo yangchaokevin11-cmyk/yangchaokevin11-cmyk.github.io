@@ -376,6 +376,11 @@ html[data-dark] .player{background:rgba(14,18,32,.86);-webkit-backdrop-filter:bl
 html[data-dark] .rd-pop,html[data-dark] .updbar{background:rgba(30,35,52,.92)}
 html[data-dark] input[type=text],html[data-dark] input[type=password],html[data-dark] select,html[data-dark] textarea{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.12)}
 html[data-dark] .fab{box-shadow:0 8px 28px rgba(123,108,255,.45)}
+.vc{display:flex;flex-direction:column;gap:10px}
+.vc-row{display:flex;gap:10px;align-items:flex-start}
+.vc-ic{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;margin-top:2px}
+.vc-ic.ok{background:var(--ok-soft);color:var(--ok)} .vc-ic.bad{background:rgba(240,138,126,.18);color:var(--danger)} .vc-ic.wait{background:var(--line);color:var(--muted)}
+.pron .ok{color:var(--ok)}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -2250,7 +2255,7 @@ function ftDraw(){
   mic.addEventListener('click',function(){ if(FT.phase==='listen') sayStop(); else ftListen(); });
   st.append(mic);
   if(FT.phase==='listen'){ st.append(el('div','pl-who me','正在听……说完停两秒，或者点一下按钮')); var lv=el('div','pl-live',FT.live||' '); lv.dataset.ftlive='1'; st.append(lv); }
-  else if(FT.phase==='idle') st.append(el('div','pl-zh','点麦克风，用英语说一句或一段话。说什么都行：今天做了什么、想问别人的问题、心里正想着的事。'));
+  else if(FT.phase==='idle'){ st.append(el('div','pl-zh','点麦克风，用英语说一句或一段话。说什么都行：今天做了什么、想问别人的问题、心里正想着的事。')); if(!SRC) st.append(el('div','pron', '这个浏览器不能用语音识别。'+recogTip(envInfo(),''))); }
   else if(!FT.text) st.append(el('div','pron', '这次没有识别到内容。'+recogWhy(FT.err==='start'?'':FT.err)));
   box.append(st);
   if(FT.phase==='done' && FT.text && FT.id){ var it=talkGet(FT.id); if(it){ box.append(ftResult(it, true)); var again=el('div','row'); again.style.justifyContent='center'; again.append(btn('🎙 再说一次','pri',ftListen)); box.append(again); } }
@@ -2422,6 +2427,127 @@ function classicCard(){
   if(t.today && t.i+1<D.classics.length) r.append(btn('读下一篇','',function(){ rdOpen(t.i+1); }));
   c.append(r);
   return c;
+}
+
+var APPVER='v15';
+// ================= VOICE CHECK-UP: every sound feature on this device, one by one =================
+var VC=null;
+function envInfo(){
+  var u=navigator.userAgent||'';
+  var ios=/iPhone|iPad|iPod/.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints>1), android=/Android/.test(u);
+  var os = ios ? (/iPhone/.test(u)?'iPhone':'iPad') : android ? '安卓手机' : /Windows/.test(u) ? 'Windows 电脑' : /Mac/.test(u) ? 'Mac' : '其他系统';
+  var wx=/MicroMessenger/i.test(u), qq=/MQQBrowser|QQ\//.test(u) && !wx;
+  var br = wx ? '微信内置浏览器' : qq ? 'QQ 浏览器' : /EdgA?\//.test(u) ? 'Edge' : /CriOS|Chrome\//.test(u) ? 'Chrome' : /Firefox|FxiOS/.test(u) ? 'Firefox' : /Safari/.test(u) ? 'Safari' : '未知浏览器';
+  var app = (navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)) ? '（主屏幕/应用模式）' : '';
+  return {ios:ios, android:android, wx:wx, os:os, br:br, text:os+' · '+br+app};
+}
+function vcStep(title){ var s={title:title, ok:null, txt:'检查中…', tip:''}; VC.steps.push(s); render(); return s; }
+function vcSet(s, ok, txt, tip){ s.ok=ok; s.txt=txt; s.tip=tip||''; render(); }
+function vcWait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+function vcTimeout(p, ms, v){ return Promise.race([p, vcWait(ms).then(function(){ return v; })]); }
+function recogTip(env, code){
+  if(env.wx && env.android) return '安卓微信里的浏览器不提供语音识别，所以“测发音”“说给它听”在这里用不了。请在 iPad 上用这两个功能；手机上可以继续用“录音 → ⇄ 对比”自己听。';
+  if(env.wx && env.ios) return '微信里的网页不能用语音识别。请用 Safari 打开同一个网址（或从主屏幕图标打开）。';
+  if(env.android) return '安卓浏览器的语音识别大多靠谷歌服务，国内不翻墙连不上。“测发音”请在 iPad 上用。';
+  if(env.br==='Chrome' && !env.ios) return 'Chrome 的语音识别用的是谷歌服务，国内不翻墙连不上。电脑上请改用 Edge 打开。';
+  if(code==='not-allowed' || code==='service-not-allowed') return '没有语音识别权限：iPad 设置 → 隐私与安全性 → 语音识别 / 麦克风，允许 Safari；电脑浏览器里点地址栏左边的锁形图标，允许麦克风。';
+  if(code==='network') return '语音识别要联网，现在连不上它的服务器。换个网络再试。';
+  if(code==='language-not-supported') return '设置 → 通用 → 键盘：添加英语键盘，并打开“启用听写”。';
+  return '靠近一点、声音大一点，点开始后马上说。';
+}
+async function voiceCheck(){
+  if(VC && VC.running) return;
+  if(recBusy() || PL || FT || RD){ toast('先关掉正在进行的练习'); return; }
+  if(PR_ACTIVE) pronCancel(); if(SAY) sayCancel(); stopSpeech();
+  VC={steps:[], running:true, done:false, ok:{}};
+  var env=envInfo(); VC.env=env;
+  var s0=vcStep('设备和浏览器'); vcSet(s0, null, env.text+'　·　程序 '+APPVER+'　·　'+(navigator.onLine?'已联网':'没联网'));
+  // 1 recorded American audio
+  var s1=vcStep('美音朗读（音频包）');
+  if(AUD.idx){
+    var keys=Object.keys(AUD.idx.m), k=keys.filter(function(x){ return /^a\|Nice to meet you/.test(x); })[0] || keys[0], txt=k.slice(2);
+    var heard=await vcTimeout(new Promise(function(res){ speak(txt,{onend:function(){ res(true); }}); }), 9000, false);
+    vcSet(s1, heard, heard ? '已加载 '+keys.length+' 条，刚才播放了一句：“'+txt+'”' : '已加载 '+keys.length+' 条，但播放没有结束（可能被静音或下载很慢）', heard ? '没听到声音的话：检查侧边静音键和音量。' : '先在设置里点“全部下载到 iPad”，再试一次。');
+    VC.ok.pack=heard;
+  } else vcSet(s1, false, '没有加载到音频包', '可能现在没联网，或者网站上的 audio 文件夹还没传好。没有音频包时，程序会用系统自带的声音朗读。');
+  // 2 system voice
+  var s2=vcStep('系统朗读（备用声音）');
+  if(window.speechSynthesis){ var vs=(speechSynthesis.getVoices()||[]).filter(function(v){ return /^en[-_]/i.test(v.lang); });
+    vcSet(s2, vs.length>0, vs.length ? '有 '+vs.length+' 个英语声音可用' : '浏览器支持系统朗读，但没找到英语声音', vs.length ? '' : '只影响没有音频包的句子。'); VC.ok.tts=vs.length>0; }
+  else { vcSet(s2, false, '这个浏览器不支持系统朗读', '只影响没有音频包的句子，有音频包的句子照常播放。'); VC.ok.tts=false; }
+  // 3 microphone and recording
+  var s3=vcStep('麦克风和录音');
+  vcSet(s3, null, '请现在说几句话，录 3 秒……');
+  var mic=await vcTimeout(new Promise(function(res){
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ res({err:'这个浏览器不允许网页用麦克风'}); return; }
+    var ctx=actx();
+    navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true}}).then(function(stream){
+      var n=0, peak=0, src=null, proc=null, chunks=[], mr=null;
+      if(ctx){ try{ ctx.resume(); src=ctx.createMediaStreamSource(stream); proc=ctx.createScriptProcessor(4096,1,1); proc.onaudioprocess=function(e){ var d=e.inputBuffer.getChannelData(0); for(var i=0;i<d.length;i++){ var a=d[i]<0?-d[i]:d[i]; if(a>peak) peak=a; } n+=d.length; }; src.connect(proc); proc.connect(ctx.destination); }catch(e){} }
+      if(window.MediaRecorder){ try{ mr=new MediaRecorder(stream); mr.ondataavailable=function(e){ if(e.data && e.data.size) chunks.push(e.data); }; mr.start(1000); }catch(e){ mr=null; } }
+      setTimeout(function(){
+        try{ if(src) src.disconnect(); if(proc){ proc.disconnect(); proc.onaudioprocess=null; } }catch(e){}
+        var fin=function(){ stream.getTracks().forEach(function(t){ t.stop(); }); micRelease(); res({n:n, peak:peak, bytes:chunks.reduce(function(a,c){ return a+c.size; },0)}); };
+        if(mr && mr.state!=='inactive'){ mr.onstop=fin; try{ mr.stop(); }catch(e){ fin(); } setTimeout(fin, 1500); } else fin();
+      }, 3000);
+    }).catch(function(e){ micRelease(); res({err:'没拿到麦克风权限（'+((e&&e.name)||'')+'）'}); });
+  }), 9000, {err:'麦克风一直没有回应'});
+  if(mic.err){ vcSet(s3, false, mic.err, env.wx ? '微信里：点右上角“…”，看看有没有麦克风权限；或者在手机设置里允许微信使用麦克风。' : 'iPad：设置 → Safari → 麦克风，选“允许”；电脑：点地址栏左边的锁形图标，允许麦克风。'); VC.ok.mic=false; }
+  else { var good=(mic.n>0 || mic.bytes>0); var quiet=mic.n>0 && mic.peak<0.003;
+    vcSet(s3, good && !quiet, good ? (quiet ? '录到了，但几乎是静音（最大音量 '+Math.round(mic.peak*100)+'%）' : '正常，最大音量 '+Math.min(100,Math.round(mic.peak*100))+'%') : '拿到了麦克风，但两种方式都没录到声音', quiet ? '说话大声一点，确认没有挡住麦克风。' : good ? '' : '把这一页截图发给 Claude。'); VC.ok.mic=good; }
+  // 4 speech recognition
+  var s4=vcStep('语音识别（测发音、说给它听需要）');
+  if(!SRC){ vcSet(s4, false, '这个浏览器没有语音识别功能', recogTip(env,'')); VC.ok.rec=false; }
+  else {
+    vcSet(s4, null, '请清楚地说：Hello, how are you?（8 秒内）');
+    var rr=await vcTimeout(new Promise(function(res){
+      var r, text='', err='', done=false, fin=function(){ if(done) return; done=true; try{ r.onend=null; r.abort(); }catch(e){} res({text:text, err:err}); };
+      try{ r=new SRC(); }catch(e){ res({err:'start'}); return; }
+      r.lang='en-US'; r.interimResults=true; r.continuous=true;
+      var quietT=null;
+      r.onresult=function(ev){ var t=''; for(var i=0;i<ev.results.length;i++) t+=ev.results[i][0].transcript+' '; text=t.trim(); clearTimeout(quietT); quietT=setTimeout(function(){ try{ r.stop(); }catch(e){} }, 1500); };
+      r.onerror=function(ev){ err=ev.error||'unknown'; };
+      r.onend=fin;
+      try{ r.start(); }catch(e){ err='start'; fin(); }
+      setTimeout(function(){ try{ r.stop(); }catch(e){} setTimeout(fin, 1500); }, 8000);
+    }), 12000, {text:'', err:'timeout'});
+    if(rr.text){ vcSet(s4, true, '正常，识别到：“'+rr.text+'”'); VC.ok.rec=true; }
+    else { vcSet(s4, false, rr.err ? '没有识别结果（错误：'+rr.err+'）' : '没有识别到声音', recogTip(env, rr.err)); VC.ok.rec=false; }
+    micRelease();
+  }
+  // 5 grammar service
+  var s5=vcStep('语法检查服务（说给它听的纠错）');
+  var lt=await vcTimeout(fetch(LT_URL,{method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'language=en-US&text='+encodeURIComponent('He go to school.')}).then(function(r){ return r.ok; }).catch(function(){ return false; }), 9000, false);
+  vcSet(s5, lt, lt ? '能连上' : '连不上', lt ? '' : '没联网，或者这个服务在当前网络下打不开。说给它听还能识别，只是不能自动纠错，可以点“复制给 Claude”。'); VC.ok.lt=lt;
+  // 6 cloud sync
+  if(cloudToken()){
+    var s6=vcStep('云端同步（GitHub）');
+    var g=await vcTimeout(gh('/rate_limit').then(function(){ return true; }).catch(function(){ return false; }), 12000, false);
+    vcSet(s6, g, g ? '能连上，令牌有效' : '连不上或令牌无效', g ? '' : '不翻墙时 GitHub 有时连不上，过一会儿会自动重试；一直不行就检查令牌。'); VC.ok.gh=g;
+  }
+  VC.running=false; VC.done=true; render();
+}
+function voiceCheckCard(){
+  var box=el('div','stack'); box.style.gap='8px';
+  var row=el('div','row');
+  var b=btn(VC && VC.running ? '检查中…' : '开始体检（约 30 秒）','sm pri',voiceCheck); if(VC && VC.running) b.disabled=true;
+  row.append(b);
+  if(VC && VC.done) row.append(btn('复制结果','sm',function(){ copy(VC.steps.map(function(s){ return (s.ok===true?'✓ ':s.ok===false?'✗ ':'· ')+s.title+'：'+s.txt+(s.tip?'（'+s.tip+'）':''); }).join('\n')); }));
+  box.append(row);
+  if(!VC) return box;
+  var L=el('div','vc');
+  VC.steps.forEach(function(s){
+    var d=el('div','vc-row'); d.append(el('span','vc-ic '+(s.ok===true?'ok':s.ok===false?'bad':'wait'), s.ok===true?'✓':s.ok===false?'✗':'…'));
+    var t=el('div'); t.append(el('b',null,s.title), el('div','small',s.txt)); if(s.tip) t.append(el('div','small muted',s.tip)); d.append(t); L.append(d);
+  });
+  box.append(L);
+  if(VC.done){
+    var o=VC.ok, sum=el('div','pron');
+    sum.append(el('b',null,'这台设备上能用的功能：'));
+    [['朗读、跟读、陪练', o.pack || o.tts], ['录音和 ⇄ 对比', o.mic], ['测发音、说给它听、自动识别', o.rec], ['说给它听的语法纠错', o.lt]].concat(cloudToken()?[['多设备同步', o.gh]]:[]).forEach(function(x){ sum.append(el('div',x[1]?'ok':'bad',(x[1]?'✓ ':'✗ ')+x[0])); });
+    box.append(sum);
+  }
+  return box;
 }
 
 // ================= DICTATION =================
@@ -2900,7 +3026,7 @@ function delBtn(x){
 // ================= SETTINGS =================
 function renderSettings(m){
   var sh=el('div','row'); sh.append(btn('‹ 返回','sm',function(){ go('me'); }), el('h1',null,'设置')); m.append(sh);
-  m.append(el('div','small muted','程序版本：v14（毛玻璃深色外观 · 新图标 · 多设备同步）'));
+  m.append(el('div','small muted','程序版本：v15（语音功能体检 · 毛玻璃深色外观 · 多设备同步）'));
   var c=el('section','card');
   function num(label, hint, key, min, max, step){
     var f=el('div','field'); var l=el('label'); l.htmlFor='set-'+key; l.append(document.createTextNode(label), el('span','hint',hint));
@@ -2931,7 +3057,7 @@ function renderSettings(m){
   c.append(tog('发音检查','在句子旁边显示“测发音”按钮（需要联网，iPad 不支持时会自动隐藏）','pron'));
   if(!SRC) c.append(el('div','small muted','这台设备的浏览器没有提供语音识别，发音检查不可用。'));
   var rtw=el('div','stack'); rtw.style.gap='6px'; rtw.style.padding='12px 0'; rtw.style.borderTop='1px solid var(--line)';
-  rtw.append(el('b',null,'检查录音'), el('div','small muted','录音总是失败时用：一步一步检查麦克风和两种录音方式，结果可以截图发给 Claude。'), recTestCard()); c.append(rtw);
+  rtw.append(el('b',null,'语音功能体检'), el('div','small muted','一次检查这台设备上的朗读、麦克风、录音、语音识别、语法纠错和同步，告诉你哪些能用、哪些不能用、为什么。有问题时点“复制结果”发给 Claude。'), voiceCheckCard()); c.append(rtw);
   // voice
   var vf=el('div','field'); var vl=el('label'); vl.htmlFor='set-voice'; vl.append(document.createTextNode('朗读声音'), el('span','hint','没有录好音频的内容（比如你自己记的生词）用这个声音'));
   var sel=el('select'); sel.id='set-voice'; var o0=el('option',null,'自动选择'); o0.value=''; sel.append(o0);

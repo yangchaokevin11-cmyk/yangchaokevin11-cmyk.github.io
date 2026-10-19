@@ -343,12 +343,15 @@ textarea.ft-want{font-family:var(--f-word);font-size:20px;min-height:90px}
 .rd-ttl{font-family:var(--f-word);font-size:22px;line-height:1.3}
 .rd-pv{font-family:var(--f-word);font-style:italic;font-size:16px;color:var(--muted);line-height:1.5}
 .rd details summary{cursor:pointer;font-weight:600}
+.boot{padding:40vh 0 0;text-align:center;color:var(--muted);font-size:15px}
+.updbar{position:fixed;left:50%;transform:translateX(-50%);top:max(12px,env(safe-area-inset-top));z-index:70;background:var(--ink);color:var(--paper);border-radius:14px;padding:8px 10px 8px 16px;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:14.5px}
+.updbar .btn:not(.pri){background:transparent;color:var(--paper);border-color:rgba(255,255,255,.35)}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
-<main id="main"></main>
+<main id="main"><div class="boot">英语打卡 · 正在打开…</div></main>
 <nav class="tabs" aria-label="页面"><div class="in" id="nav"></div></nav>
 <div class="toast" id="toast" hidden></div>
 <script>
@@ -2546,6 +2549,14 @@ function cloudRestore(){
 }
 try { if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function(){}); } catch(e){}
 if('serviceWorker' in navigator && location.protocol==='https:'){ try{ navigator.serviceWorker.register('sw.js').catch(function(){}); }catch(e){} }
+// the page opens from the saved copy; when a newer version has been downloaded, offer a one-tap refresh
+if('serviceWorker' in navigator){ try{ navigator.serviceWorker.addEventListener('message', function(ev){
+  if(!ev.data || ev.data.type!=='updated') return;
+  if(PL || FT || RD || recBusy()) return;
+  var bar=$('updbar'); if(bar) return;
+  bar=el('div','updbar'); bar.id='updbar'; bar.append(el('span',null,'新版本已下载好'), btn('点这里更新','sm pri',function(){ location.reload(); }), btn('稍后','sm',function(){ bar.remove(); }));
+  document.body.append(bar);
+}); }catch(e){} }
 
 // ================= GAME: stats, levels, achievements =================
 var LLE1_END=D.listen.findIndex(function(x){ return x.s==='lle2'; }); if(LLE1_END<0) LLE1_END=52;
@@ -2719,7 +2730,7 @@ function delBtn(x){
 // ================= SETTINGS =================
 function renderSettings(m){
   var sh=el('div','row'); sh.append(btn('‹ 返回','sm',function(){ go('me'); }), el('h1',null,'设置')); m.append(sh);
-  m.append(el('div','small muted','程序版本：v12（英文释义 · 每日经典阅读）'));
+  m.append(el('div','small muted','程序版本：v12.1（英文释义 · 每日经典阅读 · 秒开）'));
   var c=el('section','card');
   function num(label, hint, key, min, max, step){
     var f=el('div','field'); var l=el('label'); l.htmlFor='set-'+key; l.append(document.createTextNode(label), el('span','hint',hint));

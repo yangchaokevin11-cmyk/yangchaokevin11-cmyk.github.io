@@ -8,8 +8,17 @@
 <meta name="apple-mobile-web-app-title" content="英语打卡">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#F5F6F9">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2">
-<link rel="icon" type="image/png" href="/apple-touch-icon.png?v=2">
+<link rel="manifest" href="manifest.json">
+<script>
+(function(){ var t='dark', f='serif';
+  try{ var st=JSON.parse(localStorage.getItem('en-app-v3')); if(st && st.settings){ t=st.settings.theme||t; f=st.settings.font||f; } }catch(e){}
+  var d = t==='dark' || (t==='auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  var h=document.documentElement; if(d) h.setAttribute('data-dark',''); if(f==='serif') h.setAttribute('data-serif','');
+  if(d){ var m=document.querySelector('meta[name=theme-color]'); if(m) m.content='#0E1220'; }
+})();
+</script>
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3">
+<link rel="icon" type="image/png" href="/apple-touch-icon.png?v=3">
 <title>英语打卡</title>
 <style>
 /* Layout: an iPad study app — one column, bottom tab bar, large touch targets. Ink-blue for actions, highlighter yellow for "done"; English headwords set like a dictionary entry. */
@@ -27,10 +36,10 @@
   --f-mono:ui-monospace,"SF Mono",Menlo,monospace;
   --nav-h:64px;
 }
-@media (prefers-color-scheme:dark){:root{
+html[data-dark]{
   --paper:#11151D; --card:#1A1F2A; --ink:#E6E9F0; --muted:#9AA2B4; --line:#2B3241;
   --accent:#8EA5FF; --accent-soft:#25305A; --mark:#D9B23C; --mark-soft:#4A3E1A; --ok:#5CC98E; --ok-soft:#1D3A2B; --danger:#F08A7E;
-  --c-words:#8EA5FF; --c-words-soft:#232E52; --c-listen:#4FC3D1; --c-listen-soft:#173539; --c-scene:#FF9A66; --c-scene-soft:#42251A; --c-extra:#B79BFF; --c-extra-soft:#2E2448; --c-expr:#F783AC; --c-expr-soft:#45202F; --c-sound:#F0A04B; --c-sound-soft:#3F2C12; --flame:#FF8A4C; --c-dict:#A9E34B; --c-dict-soft:#26340F; color-scheme:dark}}
+  --c-words:#8EA5FF; --c-words-soft:#232E52; --c-listen:#4FC3D1; --c-listen-soft:#173539; --c-scene:#FF9A66; --c-scene-soft:#42251A; --c-extra:#B79BFF; --c-extra-soft:#2E2448; --c-expr:#F783AC; --c-expr-soft:#45202F; --c-sound:#F0A04B; --c-sound-soft:#3F2C12; --flame:#FF8A4C; --c-dict:#A9E34B; --c-dict-soft:#26340F; color-scheme:dark}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0}
 body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6;-webkit-text-size-adjust:100%}
@@ -348,6 +357,25 @@ textarea.ft-want{font-family:var(--f-word);font-size:20px;min-height:90px}
 .updbar .btn:not(.pri){background:transparent;color:var(--paper);border-color:rgba(255,255,255,.35)}
 .syncchip{margin-top:4px;border:0;background:none;padding:0;font:inherit;font-size:12.5px;color:var(--muted);cursor:pointer}
 .syncchip.bad{color:var(--danger)}
+/* v14: dark glass look */
+html[data-serif] body{font-family:"Songti SC","STSong","Noto Serif SC","Source Han Serif SC","Noto Serif CJK SC","SimSun",serif;letter-spacing:.02em}
+html[data-serif] .btn,html[data-serif] .tab,html[data-serif] .seg button{font-family:inherit}
+html[data-dark] body{background:#0E1220}
+html[data-dark] body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(60vmax 45vmax at 0% 0%,rgba(123,108,255,.22),transparent 60%),radial-gradient(55vmax 45vmax at 100% 35%,rgba(255,95,158,.14),transparent 60%),radial-gradient(60vmax 50vmax at 20% 100%,rgba(47,196,214,.13),transparent 60%),#0E1220}
+html[data-dark] .card{background:rgba(255,255,255,.045);border-color:rgba(255,255,255,.085);-webkit-backdrop-filter:blur(18px) saturate(140%);backdrop-filter:blur(18px) saturate(140%);box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 10px 30px rgba(0,0,0,.18)}
+html[data-dark] .card.dailyline{background:linear-gradient(135deg,rgba(247,131,172,.16),rgba(183,155,255,.12));border-color:rgba(255,255,255,.1)}
+html[data-dark] .banner{background:rgba(217,178,60,.14);border-color:rgba(217,178,60,.55)}
+html[data-dark] nav.tabs{background:rgba(14,18,32,.72);border-top-color:rgba(255,255,255,.08);-webkit-backdrop-filter:blur(20px) saturate(150%);backdrop-filter:blur(20px) saturate(150%)}
+html[data-dark] .btn{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.12)}
+html[data-dark] .btn.pri,html[data-dark] .btn.ok{color:#11151D}
+html[data-dark] .btn.warn{background:transparent}
+html[data-dark] .seg{background:rgba(255,255,255,.07)}
+html[data-dark] .seg button.on{background:rgba(255,255,255,.12)}
+html[data-dark] .player{background:rgba(14,18,32,.86);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
+html[data-dark] .rd-pop,html[data-dark] .updbar{background:rgba(30,35,52,.92)}
+html[data-dark] input[type=text],html[data-dark] input[type=password],html[data-dark] select,html[data-dark] textarea{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.12)}
+html[data-dark] .fab{box-shadow:0 8px 28px rgba(123,108,255,.45)}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -399,7 +427,7 @@ function toast(t, ms){ var e=$('toast'); e.textContent=t; e.hidden=false; clearT
 
 // ---------- state ----------
 var LS='en-app-v3';
-var DEF={goal:60, floor:20, newPerDay:20, batch:300, exPerDay:5, dictPerDay:5, voice:'', rate:0.9, ear:true, auto:true, pron:true, enDef:true};
+var DEF={goal:60, floor:20, newPerDay:20, batch:300, exPerDay:5, dictPerDay:5, voice:'', rate:0.9, ear:true, auto:true, pron:true, enDef:true, theme:'dark', font:'serif'};
 var TODAY = ymd(new Date());
 var state = load();
 function load(){
@@ -2872,7 +2900,7 @@ function delBtn(x){
 // ================= SETTINGS =================
 function renderSettings(m){
   var sh=el('div','row'); sh.append(btn('‹ 返回','sm',function(){ go('me'); }), el('h1',null,'设置')); m.append(sh);
-  m.append(el('div','small muted','程序版本：v13.2（多设备同步 · 英文释义 · 每日经典 · 秒开）'));
+  m.append(el('div','small muted','程序版本：v14（毛玻璃深色外观 · 新图标 · 多设备同步）'));
   var c=el('section','card');
   function num(label, hint, key, min, max, step){
     var f=el('div','field'); var l=el('label'); l.htmlFor='set-'+key; l.append(document.createTextNode(label), el('span','hint',hint));
@@ -2925,6 +2953,12 @@ function renderSettings(m){
   var vh=el('div','small muted'); vh.style.padding='0 0 12px';
   vh.textContent = nprem ? '找到 '+nprem+' 个高级/增强语音，程序会自动优先使用。' : '没有找到高级语音。想要更自然的朗读：iPad 设置 → 辅助功能 → 朗读内容 → 声音 → 英语 → 英语（美国），下载 Ava、Zoe 或 Evan 的“高级”版本，然后彻底关掉本程序再打开。';
   if(!(AUD.idx && !nprem)) c.append(vh);
+  [['theme','外观','深色是半透明的毛玻璃风格',[['dark','深色'],['light','浅色'],['auto','跟随系统']]],['font','中文字体','宋体更有书卷感，黑体更清晰',[['serif','宋体'],['sans','黑体']]]].forEach(function(z){
+    var ff=el('div','field'); var fl=el('label'); fl.htmlFor='set-'+z[0]; fl.append(document.createTextNode(z[1]), el('span','hint',z[2]));
+    var fs=el('select'); fs.id='set-'+z[0]; z[3].forEach(function(o){ var op=el('option',null,o[1]); op.value=o[0]; fs.append(op); }); fs.value=S()[z[0]]||z[3][0][0];
+    fs.addEventListener('change',function(){ S()[z[0]]=fs.value; save(); applyTheme(); });
+    ff.append(fl, fs); c.append(ff);
+  });
   var rf=el('div','field'); var rl=el('label'); rl.htmlFor='set-rate'; rl.append(document.createTextNode('朗读语速'), el('span','hint','0.9 比正常稍慢'));
   var rs=el('select'); rs.id='set-rate'; [0.7,0.8,0.9,1,1.1].forEach(function(v){ var o=el('option',null,String(v)); o.value=v; rs.append(o); }); rs.value=String(S().rate);
   rs.addEventListener('change',function(){ S().rate=Number(rs.value); save(); speak('This is the new speed.'); });
@@ -3043,6 +3077,15 @@ document.addEventListener('visibilitychange',function(){
   if(!document.hidden && PL) wakeOn();
   if(!document.hidden){ tick(); render(); if(cloudToken()) setTimeout(function(){ cloudSync(false); }, 800); } else if(cloudToken()){ cloudSync(true); }
 });
+function applyTheme(){
+  var t=S().theme||'dark', d = t==='dark' || (t==='auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  var h=document.documentElement;
+  if(d) h.setAttribute('data-dark',''); else h.removeAttribute('data-dark');
+  if((S().font||'serif')==='serif') h.setAttribute('data-serif',''); else h.removeAttribute('data-serif');
+  var m=document.querySelector('meta[name=theme-color]'); if(m) m.content = d ? '#0E1220' : '#F5F6F9';
+}
+try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(){ if(S().theme==='auto') applyTheme(); }); }catch(e){}
+applyTheme();
 checkStale();
 render();
 })();

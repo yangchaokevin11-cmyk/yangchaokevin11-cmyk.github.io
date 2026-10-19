@@ -1,7 +1,7 @@
 // Offline support for the English check-in app.
 // The page opens instantly from the saved copy; the newest version is downloaded in the background.
 // When a new version has arrived, the page is told and offers a one-tap refresh.
-var SHELL = 'shell-v8';
+var SHELL = 'shell-v9';
 var CORE = ['./', './index.html', './apple-touch-icon.png'];
 
 self.addEventListener('install', function (e) {

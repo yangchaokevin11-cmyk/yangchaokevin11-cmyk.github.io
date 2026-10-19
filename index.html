@@ -532,12 +532,12 @@ function stopTimer(silent){
   var t=state.timer; if(!t) return;
   var m=(Date.now()-t.start)/60000, capped=false;
   if(m>TCAP){ m=TCAP; capped=true; }
-  var r=day(t.d); r.min=(r.min||0)+m; r.tm[t.task]=(r.tm[t.task]||0)+m;
+  var r=day(t.d); addDevMin(r, m); r.min=(r.min||0)+m; r.tm[t.task]=(r.tm[t.task]||0)+m;
   state.timer=null; save(); renderTimer();
   if(capped) toast('计时器开了超过 '+TCAP+' 分钟，已自动停止，只记了 '+TCAP+' 分钟。学完记得点暂停。', 5000);
   else if(!silent) toast('已记录 '+Math.max(1,Math.round(m))+' 分钟');
 }
-function addMin(task, m){ var r=day(TODAY); r.min=(r.min||0)+m; r.tm[task]=(r.tm[task]||0)+m; save(); toast('已补记 '+m+' 分钟'); render(); }
+function addMin(task, m){ var r=day(TODAY); addDevMin(r, m); r.min=(r.min||0)+m; r.tm[task]=(r.tm[task]||0)+m; save(); toast('已补记 '+m+' 分钟'); render(); }
 function taskMin(task){ var r=peek(TODAY); var m=r&&r.tm[task]||0; if(state.timer&&state.timer.task===task&&state.timer.d===TODAY) m+=Math.min(TCAP,(Date.now()-state.timer.start)/60000); return m; }
 function clock(ms){ var s=Math.floor(ms/1000); return pad(Math.floor(s/60))+':'+pad(s%60); }
 
@@ -1849,7 +1849,7 @@ function renderExpr(m){
   f.addEventListener('submit',function(ev){ ev.preventDefault(); var w=i1.value.trim(), rr=i2.value.trim(); if(!w||!rr){ toast('“我说的”和“更好的说法”都要填'); return; }
     var id=Date.now().toString(36)+Math.random().toString(36).slice(2,5); state.errs.unshift({id:id,w:w,r:rr,n:i3.value.trim(),date:TODAY}); state.words['er:'+id]={s:'l',lv:0,due:addDays(TODAY,1),add:TODAY,n:0}; save(); toast('已加入错误本，明天开始复习'); render(); });
   ec.append(f);
-  if(state.errs.length){ var ul=el('ul','wl'); state.errs.slice(0,100).forEach(function(x){ var li=el('li'); var l=el('div'); var w0=el('div','small'); w0.style.textDecoration='line-through'; w0.style.color='var(--danger)'; w0.textContent=x.w; l.append(w0, el('div','w',x.r)); var del=btn('删除','sm',function(){ if(del.dataset.armed){ state.errs=state.errs.filter(function(y){ return y.id!==x.id; }); delete state.words['er:'+x.id]; save(); render(); return; } del.dataset.armed='1'; del.textContent='确认删除'; del.classList.add('warn'); setTimeout(function(){ if(del.isConnected){ delete del.dataset.armed; del.textContent='删除'; del.classList.remove('warn'); } },3000); }); var rw=el('div','row'); rw.append(btn('🔊','sm',function(){ speak(x.r); }), del); li.append(l, rw); ul.append(li); }); ec.append(ul); }
+  if(state.errs.length){ var ul=el('ul','wl'); state.errs.slice(0,100).forEach(function(x){ var li=el('li'); var l=el('div'); var w0=el('div','small'); w0.style.textDecoration='line-through'; w0.style.color='var(--danger)'; w0.textContent=x.w; l.append(w0, el('div','w',x.r)); var del=btn('删除','sm',function(){ if(del.dataset.armed){ state.errs=state.errs.filter(function(y){ return y.id!==x.id; }); delete state.words['er:'+x.id]; tomb(x.id); save(); render(); return; } del.dataset.armed='1'; del.textContent='确认删除'; del.classList.add('warn'); setTimeout(function(){ if(del.isConnected){ delete del.dataset.armed; del.textContent='删除'; del.classList.remove('warn'); } },3000); }); var rw=el('div','row'); rw.append(btn('🔊','sm',function(){ speak(x.r); }), del); li.append(l, rw); ul.append(li); }); ec.append(ul); }
   m.append(ec);
 
   // learned list
@@ -2218,7 +2218,7 @@ function ftDraw(){
     var fixes=L.filter(function(x){ return x.st==='fix'; }).length;
     h.append(el('summary',null,'我说过的话（'+L.length+' 条'+(fixes?'，其中 '+fixes+' 条有修改建议':'')+'）'));
     var hl=el('div','stack'); hl.style.marginTop='10px';
-    L.slice(0, 60).forEach(function(x){ if(FT.id===x.id) return; var r=ftResult(x, false); var del=btn('删除','sm',function(){ state.talk=talkList().filter(function(y){ return y.id!==x.id; }); save(); ftDraw(); }); r.lastChild.append(del); hl.append(r); });
+    L.slice(0, 60).forEach(function(x){ if(FT.id===x.id) return; var r=ftResult(x, false); var del=btn('删除','sm',function(){ state.talk=talkList().filter(function(y){ return y.id!==x.id; }); tomb(x.id); save(); ftDraw(); }); r.lastChild.append(del); hl.append(r); });
     h.append(hl); box.append(h);
   }
   box.append(el('div','small muted','语法检查用的是联网的免费服务 LanguageTool，没联网时只显示识别结果，联网后可以点“重新检查语法”。注意：iPad 识别时常会把句子自动修得更通顺，所以有些错误会被它“悄悄改掉”。想要最准确的修改，点“复制给 Claude”。'));
@@ -2567,6 +2567,114 @@ if('serviceWorker' in navigator){ try{ navigator.serviceWorker.addEventListener(
   document.body.append(bar);
 }); }catch(e){} }
 
+// ================= SYNC: same progress on iPad, phone and computer =================
+// Every device keeps its own copy and merges with the copy in the GitHub Gist (english-backup.json):
+// pull -> merge -> push. Merging never throws progress away: counters take the larger value,
+// lists are combined, minutes are kept per device and added up.
+var DEV=(function(){ try{ var d=localStorage.getItem('en-dev'); if(!d){ d='d'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); localStorage.setItem('en-dev', d); } return d; }catch(e){ return 'd0'; } })();
+var LOCAL_ONLY={settings:1, timer:1, gistId:1, cloudLast:1, cloudErr:1, syncLast:1, syncErr:1, lastSnap:1, plOpt:1, dictMiss:1, storyEd:0};
+function tomb(id){ if(!state.tomb) state.tomb={}; state.tomb[id]=TODAY; }
+// minutes per device for one day; days from before syncing existed count as one shared entry '_'
+function dayMd(r){ if(!r) return {}; if(r.md) return r.md; return (r.min||0) ? {'_':r.min} : {}; }
+function addDevMin(r, m){ if(!r.md){ r.md=dayMd(r); } r.md[DEV]=(r.md[DEV]||0)+m; }
+function mergeDay(a, b){
+  if(!a) return JSON.parse(JSON.stringify(b));
+  if(!b) return a;
+  var md={}, ma=dayMd(a), mb=dayMd(b), k;
+  for(k in ma) md[k]=ma[k]; for(k in mb) md[k]=Math.max(md[k]||0, mb[k]);
+  var tot=0; for(k in md) tot+=md[k];
+  var out=Object.assign({}, b, a);
+  out.md=md; out.min=tot;
+  out.tm=Object.assign({}, b.tm||{}); for(k in (a.tm||{})) out.tm[k]=Math.max(out.tm[k]||0, a.tm[k]);
+  out.t=Object.assign({}, b.t||{}); for(k in (a.t||{})) out.t[k]=Math.max(+out.t[k]||0, +a.t[k]||0);
+  ['sc','nl','rv','dn','ne','st','nt','dt','xt','rt','cel'].forEach(function(f){ if(a[f]!=null || b[f]!=null) out[f]=Math.max(+a[f]||0, +b[f]||0); });
+  ['li','si','so','sk'].forEach(function(f){ out[f] = a[f]!=null ? a[f] : b[f]; if(out[f]==null) delete out[f]; });
+  if(a.so==null && b.so!=null){ out.so=b.so; out.sk=b.sk; }
+  out.note = (a.note||'').length >= (b.note||'').length ? (a.note||'') : b.note;
+  out.req = a.req || b.req;
+  return out;
+}
+var SRANK={k:0, u:1, l:2, m:3};
+function betterWord(a, b){
+  if(!a) return b; if(!b) return a;
+  if((a.n||0)!==(b.n||0)) return (a.n||0)>(b.n||0) ? a : b;
+  if((SRANK[a.s]||0)!==(SRANK[b.s]||0)) return (SRANK[a.s]||0)>(SRANK[b.s]||0) ? a : b;
+  if((a.lv||0)!==(b.lv||0)) return (a.lv||0)>(b.lv||0) ? a : b;
+  return (a.due||'')>=(b.due||'') ? a : b;
+}
+function unionBy(a, b, key, dead){
+  var seen={}, out=[];
+  (a||[]).concat(b||[]).forEach(function(x){ var k=x[key]; if(seen[k] || (dead && dead[k])) return; seen[k]=1; out.push(x); });
+  return out;
+}
+function mergeState(L, R){
+  var k;
+  var dead=Object.assign({}, R.tomb||{}, L.tomb||{}); L.tomb=dead;
+  // days
+  var days={}; for(k in R.days) days[k]=R.days[k]; for(k in L.days) days[k]=mergeDay(L.days[k], days[k]);
+  for(k in R.days) if(!L.days[k]) days[k]=mergeDay(null, R.days[k]);
+  L.days=days;
+  // lists (deleted items stay deleted)
+  L.errs=unionBy(L.errs, R.errs, 'id', dead);
+  L.my=unionBy(L.my, R.my, 'id', dead);
+  L.talk=unionBy(L.talk, R.talk, 'id', dead).sort(function(x,y){ return x.id<y.id?1:-1; }).slice(0,300);
+  // words: keep whichever copy has been practised more
+  var words={}; for(k in R.words) words[k]=R.words[k]; for(k in L.words) words[k]=betterWord(L.words[k], words[k]);
+  var live={}; L.errs.forEach(function(x){ live['er:'+x.id]=1; }); L.my.forEach(function(x){ live['my:'+x.id]=1; });
+  for(k in words){ if((k.indexOf('er:')===0 || k.indexOf('my:')===0) && !live[k]) delete words[k]; }
+  L.words=words;
+  // counters and progress: the larger value wins
+  L.prog=L.prog||{}; for(k in (R.prog||{})) L.prog[k]=Math.max(L.prog[k]||0, R.prog[k]||0);
+  ['skip','screenPos','plCount','heard','lastExport'].forEach(function(f){ if(R[f]!=null && (L[f]==null || R[f]>L[f])) L[f]=R[f]; });
+  if(R.placed) L.placed=1;
+  if(R.created && (!L.created || R.created<L.created)) L.created=R.created;
+  // sets of done things
+  ['readDone','storyDone','monthRec','ach'].forEach(function(f){ var o=Object.assign({}, R[f]||{}); for(var x in (L[f]||{})){ o[x] = o[x] && o[x]<L[f][x] ? o[x] : L[f][x]; } L[f]=o; });
+  L.storyEd=Object.assign({}, R.storyEd||{}, L.storyEd||{});
+  // everything else: keep ours, fill in what we don't have; one-time flags (intro seen etc.) spread
+  for(k in R){ if(LOCAL_ONLY[k]) continue; if(L[k]===undefined) L[k]=R[k]; else if(R[k]===1 && /^(introSeen|sndGuide|svGuide|tnGuide)/.test(k)) L[k]=1; }
+  return L;
+}
+function canon(o){ // stable JSON for comparing, without device-only fields
+  if(Array.isArray(o)) return '['+o.map(canon).join(',')+']';
+  if(o && typeof o==='object'){ return '{'+Object.keys(o).filter(function(k){ return !LOCAL_ONLY[k]; }).sort().map(function(k){ return JSON.stringify(k)+':'+canon(o[k]); }).join(',')+'}'; }
+  return JSON.stringify(o===undefined?null:o);
+}
+var SYNC_BUSY=false, SYNC_AT=0;
+function cloudSync(force){
+  if(SYNC_BUSY || !cloudToken()) return Promise.resolve(false);
+  if(!navigator.onLine){ state.syncErr='没联网'; return Promise.resolve(false); }
+  if(!force && Date.now()-SYNC_AT < 60000) return Promise.resolve(false);
+  SYNC_BUSY=true; SYNC_AT=Date.now();
+  var mine=canon(state), remoteCanon='';
+  return cloudFind().then(function(id){
+    if(!id) return null;
+    return gh('/gists/'+id).then(function(g){
+      state.gistId=g.id;
+      var f=g.files['english-backup.json']; if(!f) return null;
+      var get = f.truncated ? fetch(f.raw_url).then(function(r){ return r.text(); }) : Promise.resolve(f.content);
+      return get.then(function(t){ try{ return JSON.parse(t); }catch(e){ return null; } });
+    });
+  }).then(function(remote){
+    if(remote && remote.v===3 && remote.days){ remoteCanon=canon(remote); mergeState(state, remote); }
+    var merged=canon(state);
+    var changedHere = merged!==mine;
+    save();
+    if(changedHere) renderSoft();
+    if(merged===remoteCanon) return true;
+    var files={'english-backup.json':{content:JSON.stringify(state)}};
+    var p = state.gistId ? gh('/gists/'+state.gistId,{method:'PATCH', body:{files:files}}) : gh('/gists',{method:'POST', body:{description:'English check-in backup', public:false, files:files}});
+    return p.then(function(j){ state.gistId=j.id; state.cloudLast=Date.now(); return true; });
+  }).then(function(){ state.syncLast=Date.now(); state.syncErr=''; state.cloudErr=''; save(); SYNC_BUSY=false; if(TAB==='settings') render(); return true; })
+    .catch(function(e){ state.syncErr=String(e.message||e); save(); SYNC_BUSY=false; if(TAB==='settings') render(); return false; });
+}
+// re-draw after a merge, but never in the middle of something the user is doing
+function renderSoft(){
+  if(PL || FT || RD || recBusy() || PR_ACTIVE || SAY) return;
+  var ae=document.activeElement; if(ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName)) return;
+  render();
+}
+
 // ================= GAME: stats, levels, achievements =================
 var LLE1_END=D.listen.findIndex(function(x){ return x.s==='lle2'; }); if(LLE1_END<0) LLE1_END=52;
 function gstats(){
@@ -2732,14 +2840,14 @@ function renderRecords(m){
   if(notes.length){ var nc=el('section','card stack'); nc.append(el('h3',null,'本月备注')); notes.forEach(function(z){ var p=el('div'); p.append(el('span','mono small muted',cn(z[0])+'  '), document.createTextNode(z[1])); nc.append(p); }); m.append(nc); }
 }
 function delBtn(x){
-  var b=btn('删除','sm',function(){ if(b.dataset.armed){ state.my=state.my.filter(function(y){ return y.id!==x.id; }); delete state.words['my:'+x.id]; save(); render(); return; } b.dataset.armed='1'; b.textContent='确认删除'; b.classList.add('warn'); setTimeout(function(){ if(b.isConnected){ delete b.dataset.armed; b.textContent='删除'; b.classList.remove('warn'); } },3000); });
+  var b=btn('删除','sm',function(){ if(b.dataset.armed){ state.my=state.my.filter(function(y){ return y.id!==x.id; }); delete state.words['my:'+x.id]; tomb(x.id); save(); render(); return; } b.dataset.armed='1'; b.textContent='确认删除'; b.classList.add('warn'); setTimeout(function(){ if(b.isConnected){ delete b.dataset.armed; b.textContent='删除'; b.classList.remove('warn'); } },3000); });
   return b;
 }
 
 // ================= SETTINGS =================
 function renderSettings(m){
   var sh=el('div','row'); sh.append(btn('‹ 返回','sm',function(){ go('me'); }), el('h1',null,'设置')); m.append(sh);
-  m.append(el('div','small muted','程序版本：v12.2（英文释义 · 每日经典阅读 · 秒开 · 直接打开 B站 App）'));
+  m.append(el('div','small muted','程序版本：v13（多设备同步 · 英文释义 · 每日经典 · 秒开）'));
   var c=el('section','card');
   function num(label, hint, key, min, max, step){
     var f=el('div','field'); var l=el('label'); l.htmlFor='set-'+key; l.append(document.createTextNode(label), el('span','hint',hint));
@@ -2810,27 +2918,29 @@ function renderSettings(m){
   info.append(el('h3',null,'关于词库'));
   info.append(el('div','small muted','单词：NGSL 新通用词表约 2800 词，加上按使用频率排序的约 5200 个常用词，NAWL 学术词表 959 词，以及 108 个常用短语动词；音标和释义来自开源词典 ECDICT。地道表达 '+EXI.length+' 条，连读弱读 '+D.sounds.length+' 课，场景 '+D.scenes.length+' 个，我的故事 '+D.stories.length+' 段。听力课程：VOA Let\'s Learn English 1–2、BBC 6 Minute English、老友记、摩登家庭。'));
   m.append(info);
-  // cloud backup
+  // cloud sync
   var cb=el('section','card stack');
-  cb.append(el('h3',null,'云端自动备份（GitHub）'));
+  cb.append(el('h3',null,'云端同步（iPad、手机、电脑进度一致）'));
   if(cloudToken()){
-    var stt=state.cloudLast ? '上次云端备份：'+new Date(state.cloudLast).toLocaleString('zh-CN') : '还没有成功备份过';
-    cb.append(el('div','small', stt), state.cloudErr ? el('div','small muted','最近一次失败：'+state.cloudErr+'（不翻墙时 GitHub 有时连不上，程序会在下次打开时自动重试）') : document.createTextNode(''));
-    cb.append(el('div','small muted','已开启：每 6 小时左右、以及每次离开程序时自动备份一次。备份存在你自己 GitHub 账号里一个不公开的 Gist 中。'));
+    var stt=state.syncLast ? '上次同步：'+new Date(state.syncLast).toLocaleString('zh-CN') : (state.cloudLast ? '上次云端备份：'+new Date(state.cloudLast).toLocaleString('zh-CN') : '还没有同步过');
+    cb.append(el('div','small', stt+(SYNC_BUSY?'（正在同步…）':'')));
+    if(state.syncErr) cb.append(el('div','small muted','最近一次失败：'+state.syncErr+'（不翻墙时 GitHub 有时连不上，程序会自动重试）'));
+    cb.append(el('div','small muted','已开启。打开程序、离开程序时，以及学习中每 5 分钟，会和云端合并一次。合并不会丢进度：单词按练得多的那份算，课程进度取最远的，学习时间按设备分别记录后相加。'));
+    cb.append(el('div','small muted','让其他设备也同步：在手机、电脑的浏览器里打开同一个网址，进入“我的 → 设置”，粘贴同一个令牌即可。令牌只存在本机，不会被同步出去。'));
     var cr=el('div','row');
-    var nb=btn('立即备份','sm pri',function(){ nb.disabled=true; nb.textContent='备份中…'; cloudBackup(true).then(function(ok){ toast(ok?'已备份到云端':'备份失败：'+(state.cloudErr||'')); render(); }); });
-    var rb2=btn('从云端恢复','sm',function(){ if(!rb2.dataset.armed){ rb2.dataset.armed='1'; rb2.textContent='再点一次：用云端覆盖本机'; return; } rb2.disabled=true; cloudRestore().then(function(s2){ state=s2; state.settings=Object.assign({},DEF,s2.settings||{}); save(); toast('已从云端恢复'); render(); }).catch(function(e){ toast('恢复失败：'+(e.message||e), 4000); render(); }); });
-    var off=btn('关闭云端备份','sm',function(){ try{ localStorage.removeItem(CLOUD_KEY); }catch(e){} toast('已关闭'); render(); });
+    var nb=btn(SYNC_BUSY?'同步中…':'立即同步','sm pri',function(){ nb.disabled=true; nb.textContent='同步中…'; cloudSync(true).then(function(ok){ toast(ok?'已同步':'同步失败：'+(state.syncErr||''), 4000); render(); }); });
+    if(SYNC_BUSY) nb.disabled=true;
+    var rb2=btn('用云端覆盖本机','sm',function(){ if(!rb2.dataset.armed){ rb2.dataset.armed='1'; rb2.textContent='再点一次：本机进度会被云端替换'; return; } rb2.disabled=true; cloudRestore().then(function(s2){ s2.settings=state.settings; state=s2; save(); toast('已用云端覆盖本机'); render(); }).catch(function(e){ toast('失败：'+(e.message||e), 4000); render(); }); });
+    var off=btn('关闭同步','sm',function(){ try{ localStorage.removeItem(CLOUD_KEY); }catch(e){} toast('已关闭，本机进度保留'); render(); });
     cr.append(nb, rb2, off); cb.append(cr);
   } else {
-    cb.append(el('div','small muted','打开后，程序会自动把进度备份到你的 GitHub 账号（一个不公开的 Gist），删掉图标或换 iPad 都能恢复。只需要设置一次：'));
-    var ol=el('ol','steps'); ['在电脑上（可以开翻墙）登录 github.com，打开 Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token (classic)','Note 填 english app，Expiration 选 No expiration，权限只勾选 gist，然后点 Generate token','复制生成的那串字符（以 ghp_ 开头），发到 iPad 上，粘贴到下面'].forEach(function(t){ ol.append(el('li',null,t)); }); cb.append(ol);
+    cb.append(el('div','small muted','打开后，程序会把进度存到你的 GitHub 账号（一个不公开的 Gist）。在 iPad、手机、电脑上都填同一个令牌，进度就会自动合并、保持一致；删掉图标或换设备也能找回。'));
+    var ol=el('ol','steps'); ['已经有令牌（ghp_ 开头）的话，直接粘贴到下面；以前在 iPad 上开过云端备份的，用同一个令牌。','还没有令牌：在电脑上（可以开翻墙）登录 github.com，打开 Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token (classic)','Note 填 english app，Expiration 选 No expiration，权限只勾选 gist，点 Generate token，复制以 ghp_ 开头的那串字符'].forEach(function(t){ ol.append(el('li',null,t)); }); cb.append(ol);
     var ti=el('input'); ti.type='password'; ti.id='cloudToken'; ti.placeholder='粘贴 ghp_ 开头的令牌'; ti.autocomplete='off'; ti.setAttribute('autocapitalize','off'); cb.append(ti);
     var cr2=el('div','row');
-    var cn2=btn('开启自动备份','sm pri',function(){ var v=$('cloudToken').value.trim(); if(!/^gh[pousr]_|^github_pat_/.test(v)){ toast('令牌格式不对，应该以 ghp_ 开头'); return; } try{ localStorage.setItem(CLOUD_KEY, v); }catch(e){} cn2.disabled=true; cn2.textContent='连接中…';
-      cloudFind().then(function(id){ if(id){ state.gistId=id; save(); } return cloudBackup(true); }).then(function(ok){ toast(ok?'已开启，第一次备份成功':'令牌已保存，但现在连不上 GitHub，稍后会自动重试', 4000); render(); }).catch(function(e){ toast('连接失败：'+(e.message||e)+'。检查令牌是否正确，或开翻墙再试', 5000); render(); }); });
-    var rs2=btn('用这个令牌从云端恢复','sm',function(){ var v=$('cloudToken').value.trim(); if(!v){ toast('先粘贴令牌'); return; } try{ localStorage.setItem(CLOUD_KEY, v); }catch(e){} cloudRestore().then(function(s2){ state=s2; state.settings=Object.assign({},DEF,s2.settings||{}); save(); toast('已从云端恢复'); render(); }).catch(function(e){ toast('恢复失败：'+(e.message||e), 4000); }); });
-    cr2.append(cn2, rs2); cb.append(cr2);
+    var cn2=btn('开启同步','sm pri',function(){ var v=$('cloudToken').value.trim(); if(!/^gh[pousr]_|^github_pat_/.test(v)){ toast('令牌格式不对，应该以 ghp_ 开头'); return; } try{ localStorage.setItem(CLOUD_KEY, v); }catch(e){} cn2.disabled=true; cn2.textContent='连接中…';
+      cloudSync(true).then(function(ok){ toast(ok?'已开启，已和云端合并':'令牌已保存，但现在连不上 GitHub，稍后会自动重试：'+(state.syncErr||''), 5000); render(); }); });
+    cr2.append(cn2); cb.append(cr2);
   }
   m.append(cb);
   // local snapshots
@@ -2886,7 +2996,7 @@ function afterRender(){
   if(r && !r.cel && status(TODAY)==='full'){ r.cel=1; save(); setTimeout(function(){ confetti(170); toast('今日达标，太棒了！', 3500); }, 250); }
   if(!ACHBUSY){ ACHBUSY=true; setTimeout(function(){ ACHBUSY=false; checkAch(); }, 600); }
   if(state.lastSnap!==TODAY) setTimeout(snapSave, 1500);
-  if(cloudToken() && Date.now()-(state.cloudLast||0) > 6*3600*1000) setTimeout(function(){ cloudBackup(false); }, 3000);
+  if(cloudToken() && Date.now()-SYNC_AT > 5*60000) setTimeout(function(){ cloudSync(false); }, 1500);
 }
 function tick(){
   checkStale();
@@ -2904,7 +3014,7 @@ setInterval(tick, 1000);
 document.addEventListener('visibilitychange',function(){
   if(document.hidden && PL && !PL.done && !PL.paused){ PL.paused=true; plStop(); PL.until=0; plDraw(); }
   if(!document.hidden && PL) wakeOn();
-  if(!document.hidden){ tick(); render(); } else if(cloudToken()){ cloudBackup(false); }
+  if(!document.hidden){ tick(); render(); if(cloudToken()) setTimeout(function(){ cloudSync(false); }, 800); } else if(cloudToken()){ cloudSync(true); }
 });
 checkStale();
 render();
